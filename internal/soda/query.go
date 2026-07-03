@@ -14,7 +14,7 @@ import (
 
 const (
 	defaultLimit = 1000
-	maxLimit     = 50000
+	maxLimit     = 1000
 )
 
 type QueryParams struct {
