@@ -24,16 +24,43 @@ type Store struct {
 	db *gorm.DB
 }
 
+var fixedDatasetTables = map[string]string{
+	"kv7h-kjye": "dataset_contributions",
+	"tijg-9zyp": "dataset_expenditures",
+	"7qr9-q2c9": "dataset_reporting_history",
+	"3h9x-7bvm": "dataset_summary",
+	"3r6b-hsaa": "dataset_debt",
+	"d2ig-r3q4": "dataset_loans",
+}
+
 func NewStore(db *gorm.DB) *Store {
 	return &Store{db: db}
 }
 
 func DatasetTableName(datasetID string) (string, error) {
+	if table, ok := fixedDatasetTables[datasetID]; ok {
+		return table, nil
+	}
+	slug, err := datasetIDSlug(datasetID)
+	if err != nil {
+		return "", err
+	}
+	return "dataset_" + slug, nil
+}
+
+func LegacyDatasetTableName(datasetID string) (string, error) {
+	slug, err := datasetIDSlug(datasetID)
+	if err != nil {
+		return "", err
+	}
+	return "dataset_" + slug + "_records", nil
+}
+
+func datasetIDSlug(datasetID string) (string, error) {
 	if datasetID == "" {
 		return "", ErrInvalidDatasetID
 	}
 	var b strings.Builder
-	b.WriteString("dataset_")
 	for _, r := range datasetID {
 		switch {
 		case r == '-' || r == '_':
@@ -44,7 +71,6 @@ func DatasetTableName(datasetID string) (string, error) {
 			return "", ErrInvalidDatasetID
 		}
 	}
-	b.WriteString("_records")
 	return b.String(), nil
 }
 
@@ -79,17 +105,6 @@ func (s *Store) DatasetTableExists(datasetID string) (string, bool, error) {
 	return table, s.db.Migrator().HasTable(table), nil
 }
 
-func (s *Store) TableForRead(datasetID string) (table string, datasetTable bool, err error) {
-	table, exists, err := s.DatasetTableExists(datasetID)
-	if err != nil {
-		return "", false, err
-	}
-	if exists {
-		return table, true, nil
-	}
-	return "records", false, nil
-}
-
 func (s *Store) UpsertRecords(datasetID string, records []DatasetRecord) error {
 	if len(records) == 0 {
 		_, err := s.EnsureDatasetTable(datasetID)
@@ -106,51 +121,103 @@ func (s *Store) UpsertRecords(datasetID string, records []DatasetRecord) error {
 }
 
 func (s *Store) CountDatasetRows(datasetID string) (int64, error) {
-	table, datasetTable, err := s.TableForRead(datasetID)
+	table, exists, err := s.DatasetTableExists(datasetID)
 	if err != nil {
 		return 0, err
+	}
+	if !exists {
+		return 0, nil
 	}
 	var count int64
-	q := s.db.Table(table)
-	if !datasetTable {
-		q = q.Where("dataset_id = ?", datasetID)
-	}
-	if err := q.Count(&count).Error; err != nil {
+	if err := s.db.Table(table).Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func (s *Store) MigrateDataset(datasetID, name string) (int64, error) {
-	table, err := s.EnsureDatasetTable(datasetID)
-	if err != nil {
-		return 0, err
-	}
-	result := s.db.Exec(fmt.Sprintf(
-		`INSERT INTO %s ("row_id", "data")
-		 SELECT row_id, data FROM records WHERE dataset_id = ?
-		 ON CONFLICT ("row_id") DO UPDATE SET "data" = EXCLUDED."data"`,
-		quoteIdentifier(table),
-	), datasetID)
-	if result.Error != nil {
-		return 0, result.Error
-	}
-	count, err := s.ReconcileDataset(datasetID, name)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
+type RenameResult struct {
+	DatasetID string `json:"dataset_id"`
+	OldTable  string `json:"old_table"`
+	NewTable  string `json:"new_table"`
+	Action    string `json:"action"`
+	Rows      int64  `json:"rows"`
 }
 
-func (s *Store) ReconcileDataset(datasetID, name string) (int64, error) {
+func (s *Store) RenameDatasetTables(datasetIDs []string) ([]RenameResult, error) {
+	results := make([]RenameResult, 0, len(datasetIDs))
+	for _, datasetID := range datasetIDs {
+		result, err := s.RenameDatasetTable(datasetID)
+		if err != nil {
+			return results, err
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+func (s *Store) RenameDatasetTable(datasetID string) (RenameResult, error) {
+	oldTable, err := LegacyDatasetTableName(datasetID)
+	if err != nil {
+		return RenameResult{}, err
+	}
+	newTable, err := DatasetTableName(datasetID)
+	if err != nil {
+		return RenameResult{}, err
+	}
+	result := RenameResult{
+		DatasetID: datasetID,
+		OldTable:  oldTable,
+		NewTable:  newTable,
+	}
+
+	oldExists := s.db.Migrator().HasTable(oldTable)
+	newExists := s.db.Migrator().HasTable(newTable)
+
+	switch {
+	case oldExists && !newExists:
+		if err := s.db.Exec(fmt.Sprintf(
+			`ALTER TABLE %s RENAME TO %s`,
+			quoteIdentifier(oldTable),
+			quoteIdentifier(newTable),
+		)).Error; err != nil {
+			return result, err
+		}
+		result.Action = "renamed"
+	case oldExists && newExists:
+		if _, err := s.EnsureDatasetTable(datasetID); err != nil {
+			return result, err
+		}
+		if err := s.db.Exec(fmt.Sprintf(
+			`INSERT INTO %s ("row_id", "data")
+			 SELECT "row_id", "data" FROM %s
+			 WHERE 1 = 1
+			 ON CONFLICT ("row_id") DO UPDATE SET "data" = EXCLUDED."data"`,
+			quoteIdentifier(newTable),
+			quoteIdentifier(oldTable),
+		)).Error; err != nil {
+			return result, err
+		}
+		if err := s.db.Migrator().DropTable(oldTable); err != nil {
+			return result, err
+		}
+		result.Action = "merged"
+	case !oldExists && newExists:
+		result.Action = "already_renamed"
+	default:
+		if _, err := s.EnsureDatasetTable(datasetID); err != nil {
+			return result, err
+		}
+		result.Action = "created"
+	}
+	if _, err := s.EnsureDatasetTable(datasetID); err != nil {
+		return result, err
+	}
 	count, err := s.CountDatasetRows(datasetID)
 	if err != nil {
-		return 0, err
+		return result, err
 	}
-	if err := s.UpdateDatasetStats(datasetID, name, -1, count); err != nil {
-		return 0, err
-	}
-	return count, nil
+	result.Rows = count
+	return result, nil
 }
 
 func (s *Store) UpsertDatasetOffset(datasetID, name string, offset int64) error {
@@ -191,11 +258,11 @@ func (s *Store) UpdateDatasetStats(datasetID, name string, offset, rowCount int6
 }
 
 func (s *Store) ClearDataset(datasetID string) (int64, error) {
-	var deleted int64
 	table, exists, err := s.DatasetTableExists(datasetID)
 	if err != nil {
 		return 0, err
 	}
+	var deleted int64
 	if exists {
 		result := s.db.Table(table).Where("1 = 1").Delete(&DatasetRecord{})
 		if result.Error != nil {
@@ -203,11 +270,6 @@ func (s *Store) ClearDataset(datasetID string) (int64, error) {
 		}
 		deleted += result.RowsAffected
 	}
-	result := s.db.Where("dataset_id = ?", datasetID).Delete(&models.Record{})
-	if result.Error != nil {
-		return 0, result.Error
-	}
-	deleted += result.RowsAffected
 
 	if err := s.db.Model(&models.Dataset{}).Where("id = ?", datasetID).Updates(map[string]interface{}{
 		"row_count":   0,

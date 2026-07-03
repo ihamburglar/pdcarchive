@@ -78,18 +78,21 @@ func ExecuteQuery(db *gorm.DB, datasetID string, colTypes ColumnTypes, params Qu
 		return nil, fmt.Errorf("invalid $where: %w", err)
 	}
 	store := storage.NewStore(db)
-	table, datasetTable, err := store.TableForRead(datasetID)
+	table, exists, err := store.DatasetTableExists(datasetID)
 	if err != nil {
 		return nil, err
+	}
+	if !exists {
+		if strings.ToLower(strings.ReplaceAll(params.Select, " ", "")) == "count(*)" {
+			return &QueryResult{CountMode: true, Count: 0}, nil
+		}
+		return &QueryResult{Rows: []queryRecord{}}, nil
 	}
 
 	selectLower := strings.ToLower(strings.ReplaceAll(params.Select, " ", ""))
 	if selectLower == "count(*)" {
 		var count int64
 		q := db.Table(table)
-		if !datasetTable {
-			q = q.Where("dataset_id = ?", datasetID)
-		}
 		if whereSQL != "" {
 			q = q.Where(whereSQL)
 		}
@@ -100,9 +103,6 @@ func ExecuteQuery(db *gorm.DB, datasetID string, colTypes ColumnTypes, params Qu
 	}
 
 	q := db.Table(table)
-	if !datasetTable {
-		q = q.Where("dataset_id = ?", datasetID)
-	}
 	if whereSQL != "" {
 		q = q.Where(whereSQL)
 	}

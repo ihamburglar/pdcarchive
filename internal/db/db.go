@@ -38,7 +38,6 @@ func Connect(databaseURL string, production bool) (*gorm.DB, error) {
 
 	if err := database.AutoMigrate(
 		&models.Dataset{},
-		&models.Record{},
 		&models.SyncJob{},
 	); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)

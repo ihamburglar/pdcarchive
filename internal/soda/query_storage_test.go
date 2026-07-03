@@ -16,7 +16,7 @@ func testQueryDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.Dataset{}, &models.Record{}, &models.SyncJob{}); err != nil {
+	if err := db.AutoMigrate(&models.Dataset{}, &models.SyncJob{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db

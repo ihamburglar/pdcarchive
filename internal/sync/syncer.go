@@ -334,64 +334,16 @@ func (s *Syncer) ClearDataset(datasetID string) (int64, error) {
 	return deleted, nil
 }
 
-func (s *Syncer) MigrateDataset(datasetID, name string) (int64, error) {
-	if s.IsRunning(datasetID) {
-		return 0, ErrSyncRunning
-	}
-	if s.AnyRunning() {
-		return 0, ErrImportInProgress
-	}
-	count, err := s.store.MigrateDataset(datasetID, name)
-	if err != nil {
-		return 0, err
-	}
-	log.Printf("migrated dataset %s to per-dataset table with %d rows", datasetID, count)
-	return count, nil
-}
-
-func (s *Syncer) MigrateAll(datasets []string, names map[string]string) (map[string]int64, error) {
+func (s *Syncer) RenameDatasetTables(datasetIDs []string) ([]storage.RenameResult, error) {
 	if s.AnyRunning() {
 		return nil, ErrImportInProgress
 	}
-	out := make(map[string]int64, len(datasets))
-	for _, id := range datasets {
-		count, err := s.store.MigrateDataset(id, names[id])
-		if err != nil {
-			return out, err
-		}
-		out[id] = count
-		log.Printf("migrated dataset %s to per-dataset table with %d rows", id, count)
-	}
-	return out, nil
-}
-
-func (s *Syncer) ReconcileDataset(datasetID, name string) (int64, error) {
-	if s.IsRunning(datasetID) {
-		return 0, ErrSyncRunning
-	}
-	if s.AnyRunning() {
-		return 0, ErrImportInProgress
-	}
-	count, err := s.store.ReconcileDataset(datasetID, name)
+	results, err := s.store.RenameDatasetTables(datasetIDs)
 	if err != nil {
-		return 0, err
+		return results, err
 	}
-	log.Printf("reconciled dataset %s with %d rows", datasetID, count)
-	return count, nil
-}
-
-func (s *Syncer) ReconcileAll(datasets []string, names map[string]string) (map[string]int64, error) {
-	if s.AnyRunning() {
-		return nil, ErrImportInProgress
+	for _, result := range results {
+		log.Printf("dataset table rename %s: %s -> %s (%s, %d rows)", result.DatasetID, result.OldTable, result.NewTable, result.Action, result.Rows)
 	}
-	out := make(map[string]int64, len(datasets))
-	for _, id := range datasets {
-		count, err := s.store.ReconcileDataset(id, names[id])
-		if err != nil {
-			return out, err
-		}
-		out[id] = count
-		log.Printf("reconciled dataset %s with %d rows", id, count)
-	}
-	return out, nil
+	return results, nil
 }

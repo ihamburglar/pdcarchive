@@ -230,50 +230,13 @@ func (h *Handler) ClearDataset(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "records deleted", "dataset_id": id, "deleted": deleted})
 }
 
-func (h *Handler) MigrateDataset(c *gin.Context) {
-	id := c.Param("id")
-	if !h.isConfigured(id) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "dataset not configured"})
-		return
-	}
-	count, err := h.Syncer.MigrateDataset(id, h.datasetName(id))
+func (h *Handler) RenameTables(c *gin.Context) {
+	results, err := h.Syncer.RenameDatasetTables(h.Config.Datasets)
 	if err != nil {
 		h.writeSyncerError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "dataset table migrated", "dataset_id": id, "rows": count})
-}
-
-func (h *Handler) MigrateAll(c *gin.Context) {
-	counts, err := h.Syncer.MigrateAll(h.Config.Datasets, h.datasetNames())
-	if err != nil {
-		h.writeSyncerError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "dataset tables migrated", "rows": counts})
-}
-
-func (h *Handler) ReconcileDataset(c *gin.Context) {
-	id := c.Param("id")
-	if !h.isConfigured(id) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "dataset not configured"})
-		return
-	}
-	count, err := h.Syncer.ReconcileDataset(id, h.datasetName(id))
-	if err != nil {
-		h.writeSyncerError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "dataset counts reconciled", "dataset_id": id, "rows": count})
-}
-
-func (h *Handler) ReconcileAll(c *gin.Context) {
-	counts, err := h.Syncer.ReconcileAll(h.Config.Datasets, h.datasetNames())
-	if err != nil {
-		h.writeSyncerError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "dataset counts reconciled", "rows": counts})
+	c.JSON(http.StatusOK, gin.H{"message": "dataset tables renamed", "results": results})
 }
 
 func (h *Handler) writeSyncerError(c *gin.Context, err error) {
@@ -282,29 +245,6 @@ func (h *Handler) writeSyncerError(c *gin.Context, err error) {
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-}
-
-func (h *Handler) datasetNames() map[string]string {
-	var datasets []models.Dataset
-	h.DB.Find(&datasets)
-	names := make(map[string]string, len(datasets))
-	for _, d := range datasets {
-		names[d.ID] = d.Name
-	}
-	for _, id := range h.Config.Datasets {
-		if names[id] == "" {
-			names[id] = id
-		}
-	}
-	return names
-}
-
-func (h *Handler) datasetName(id string) string {
-	names := h.datasetNames()
-	if names[id] == "" {
-		return id
-	}
-	return names[id]
 }
 
 func (h *Handler) isConfigured(id string) bool {

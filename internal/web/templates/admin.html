@@ -45,8 +45,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
         <h2>Datasets</h2>
         <div class="actions">
-          <button class="btn btn-secondary" type="button" id="migrate-all-btn">Migrate All Tables</button>
-          <button class="btn btn-secondary" type="button" id="reconcile-all-btn">Reconcile Counts</button>
+          <button class="btn btn-secondary" type="button" id="rename-tables-btn">Rename Tables</button>
           <button class="btn" type="button" id="sync-all-btn">Sync All</button>
         </div>
       </div>
@@ -91,7 +90,7 @@
           <td><code>${escapeHtml(d.id)}</code></td>
           <td>${d.row_count || '—'}</td>
           <td>${d.sync_offset || '0'}</td>
-          <td>${d.table_exists ? '<code>' + escapeHtml(d.table_name) + '</code>' : '<span class="muted">shared records table</span>'}</td>
+          <td>${d.table_exists ? '<code>' + escapeHtml(d.table_name) + '</code>' : '<span class="muted">table missing</span>'}</td>
           <td>${fmtTime(d.synced_at)}</td>
           <td>${d.running ? '<span class="status-running">syncing…</span>' : 'idle'}</td>
           <td>
@@ -99,8 +98,6 @@
               ${d.running
                 ? '<button class="btn btn-danger stop-btn" data-id="' + escapeHtml(d.id) + '">Stop</button>'
                 : '<button class="btn sync-btn" data-id="' + escapeHtml(d.id) + '">Sync Now</button>'}
-              <button class="btn btn-secondary migrate-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before migrating"' : ''}>Migrate Table</button>
-              <button class="btn btn-secondary reconcile-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before reconciling"' : ''}>Reconcile</button>
               <button class="btn btn-outline-danger clear-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before clearing"' : ''}>Clear Dataset</button>
             </div>
           </td>
@@ -114,12 +111,6 @@
       });
       tbody.querySelectorAll('.clear-btn').forEach(btn => {
         btn.addEventListener('click', () => clearRecords(btn.dataset.id, btn.dataset.name));
-      });
-      tbody.querySelectorAll('.migrate-btn').forEach(btn => {
-        btn.addEventListener('click', () => migrateDataset(btn.dataset.id, btn.dataset.name));
-      });
-      tbody.querySelectorAll('.reconcile-btn').forEach(btn => {
-        btn.addEventListener('click', () => reconcileDataset(btn.dataset.id, btn.dataset.name));
       });
     }
 
@@ -179,34 +170,11 @@
       }
     }
 
-    async function migrateDataset(id, name) {
-      const label = name || id;
-      if (!confirm(`Create/update the per-dataset table for ${label} from existing local records?`)) {
+    async function renameTables() {
+      if (!confirm('Rename existing ID-based dataset tables to readable names? This is safe to re-run.')) {
         return;
       }
-      await postAction(`/admin/datasets/${id}/migrate`, 'Failed to migrate dataset table');
-    }
-
-    async function reconcileDataset(id, name) {
-      const label = name || id;
-      if (!confirm(`Recompute local row count for ${label} from the database table?`)) {
-        return;
-      }
-      await postAction(`/admin/datasets/${id}/reconcile`, 'Failed to reconcile counts');
-    }
-
-    async function migrateAll() {
-      if (!confirm('Create/update per-dataset tables for all configured datasets from existing local records?')) {
-        return;
-      }
-      await postAction('/admin/datasets/migrate', 'Failed to migrate dataset tables');
-    }
-
-    async function reconcileAll() {
-      if (!confirm('Recompute local row counts for all configured datasets?')) {
-        return;
-      }
-      await postAction('/admin/datasets/reconcile', 'Failed to reconcile counts');
+      await postAction('/admin/datasets/rename-tables', 'Failed to rename dataset tables');
     }
 
     async function postAction(url, failureMessage) {
@@ -253,8 +221,7 @@
     }
 
     document.getElementById('sync-all-btn').addEventListener('click', () => startSync(null));
-    document.getElementById('migrate-all-btn').addEventListener('click', migrateAll);
-    document.getElementById('reconcile-all-btn').addEventListener('click', reconcileAll);
+    document.getElementById('rename-tables-btn').addEventListener('click', renameTables);
     refreshStatus();
     setInterval(refreshStatus, 1000);
   </script>
