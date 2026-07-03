@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDC Archive</title>
+  <style>
+    :root { --bg: #f8f9fa; --text: #1a1a2e; --accent: #2d6a4f; --border: #dee2e6; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    header { background: var(--accent); color: #fff; padding: 2rem; }
+    header h1 { font-size: 1.75rem; }
+    header p { opacity: 0.9; margin-top: 0.5rem; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1rem; }
+    section { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.25rem; margin-bottom: 1rem; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+    th { font-weight: 600; }
+    code { background: #e9ecef; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85rem; }
+    pre { background: #1a1a2e; color: #e9ecef; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin-top: 0.5rem; }
+    a { color: var(--accent); }
+    footer { text-align: center; padding: 2rem; color: #6c757d; font-size: 0.85rem; }
+    .badge { display: inline-block; background: #d8f3dc; color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PDC Archive</h1>
+    <p>An independent mirror of Washington State Public Disclosure Commission campaign finance data</p>
+  </header>
+  <main>
+    <section>
+      <h2>About</h2>
+      <p>This archive preserves campaign finance data published by the <a href="https://www.pdc.wa.gov" target="_blank">Washington State Public Disclosure Commission</a> via the <a href="https://data.wa.gov" target="_blank">Washington Open Data Portal</a>. Data is mirrored locally and served through a <strong>SODA 2-compatible API</strong> — swap the hostname in your existing queries and they continue to work.</p>
+      <p style="margin-top:0.75rem">The public API is <span class="badge">unauthenticated</span> — no API keys required.</p>
+    </section>
+
+    <section>
+      <h2>Datasets</h2>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Resource ID</th><th>Rows</th><th>Last Synced</th><th>Query</th></tr>
+        </thead>
+        <tbody>
+          {{range .Datasets}}
+          <tr>
+            <td>{{.Name}}</td>
+            <td><code>{{.ID}}</code></td>
+            <td>{{if .RowCount}}{{.RowCount}}{{else}}—{{end}}</td>
+            <td>{{if .SyncedAt}}{{.SyncedAt.Format "2006-01-02 15:04"}}{{else}}—{{end}}</td>
+            <td><a href="/resource/{{.ID}}.json?$limit=5">sample</a></td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>API Usage</h2>
+      <p>Endpoints mirror <code>data.wa.gov</code> SODA 2 format:</p>
+      <pre>GET /resource/{resource-id}.json
+GET /api/views/{resource-id}/columns.json</pre>
+
+      <p style="margin-top:1rem">Supported query parameters:</p>
+      <table>
+        <thead><tr><th>Parameter</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>$select</code></td><td>Fields to return, or <code>count(*)</code></td></tr>
+          <tr><td><code>$where</code></td><td>Filter (comparisons, AND, OR, IS NULL)</td></tr>
+          <tr><td><code>$order</code></td><td>Sort field and direction</td></tr>
+          <tr><td><code>$limit</code></td><td>Max rows (default 1000, max 50000)</td></tr>
+          <tr><td><code>$offset</code></td><td>Pagination offset</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-top:1rem">Examples (replace host with this server):</p>
+      <pre>curl "{{.BaseURL}}/resource/kv7h-kjye.json?$limit=1"
+curl "{{.BaseURL}}/resource/kv7h-kjye.json?$select=count(*)"
+curl "{{.BaseURL}}/resource/kv7h-kjye.json?$where=amount>500&$limit=2"</pre>
+    </section>
+
+    <section>
+      <h2>Attribution</h2>
+      <p>Data sourced from the Washington State Public Disclosure Commission via <a href="https://data.wa.gov">data.wa.gov</a>. This is an independent archive and is not affiliated with the PDC or the State of Washington.</p>
+    </section>
+  </main>
+  <footer>
+    <a href="/admin/login">Admin</a>
+  </footer>
+</body>
+</html>

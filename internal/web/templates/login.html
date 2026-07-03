@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login — PDC Archive</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f8f9fa; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 2rem; width: 100%; max-width: 360px; }
+    h1 { font-size: 1.25rem; margin-bottom: 1.5rem; color: #2d6a4f; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 0.25rem; }
+    input { width: 100%; padding: 0.5rem; border: 1px solid #ced4da; border-radius: 4px; margin-bottom: 1rem; }
+    button { width: 100%; padding: 0.6rem; background: #2d6a4f; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+    button:hover { background: #1b4332; }
+    .error { color: #dc3545; font-size: 0.85rem; margin-bottom: 1rem; }
+    a { color: #2d6a4f; font-size: 0.85rem; display: block; margin-top: 1rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Admin Login</h1>
+    {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    <form method="POST" action="/admin/login">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" required autofocus>
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required>
+      <button type="submit">Sign in</button>
+    </form>
+    <a href="/">← Back to site</a>
+  </div>
+</body>
+</html>
