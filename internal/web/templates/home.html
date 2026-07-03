@@ -26,6 +26,20 @@
     .license-row img { flex-shrink: 0; border: 0; }
     h3 { font-size: 1rem; margin: 1.25rem 0 0.5rem; color: var(--text); }
     footer p { margin-top: 0.5rem; }
+    @media (max-width: 700px) {
+      header { padding: 1.25rem; }
+      header h1 { font-size: 1.5rem; }
+      main { padding: 1rem 0.75rem; }
+      section { padding: 1rem; }
+      table, thead, tbody, tr, th, td { display: block; width: 100%; }
+      thead { position: absolute; left: -9999px; }
+      tr { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem; padding: 0.5rem; }
+      td { display: grid; grid-template-columns: minmax(7rem, 40%) 1fr; gap: 0.75rem; border-bottom: 0; padding: 0.35rem 0; overflow-wrap: anywhere; }
+      td::before { content: attr(data-label); font-weight: 600; color: var(--accent); }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+      .license-row { flex-direction: column; gap: 0.5rem; }
+      footer { padding: 1rem; }
+    }
   </style>
 </head>
 <body>
@@ -49,11 +63,11 @@
         <tbody>
           {{range .Datasets}}
           <tr>
-            <td>{{.Name}}</td>
-            <td><code>{{.ID}}</code></td>
-            <td>{{if .RowCount}}{{.RowCount}}{{else}}—{{end}}</td>
-            <td>{{if .SyncedAt}}{{.SyncedAt.Format "2006-01-02 15:04"}}{{else}}—{{end}}</td>
-            <td><a href="/resource/{{.ID}}.json?$limit=5">sample</a></td>
+            <td data-label="Name">{{.Name}}</td>
+            <td data-label="Resource ID"><code>{{.ID}}</code></td>
+            <td data-label="Rows">{{if .RowCount}}{{.RowCount}}{{else}}—{{end}}</td>
+            <td data-label="Last Synced">{{if .SyncedAt}}{{.SyncedAt.Format "2006-01-02 15:04"}}{{else}}—{{end}}</td>
+            <td data-label="Query"><a href="/resource/{{.ID}}.json?$limit=5">sample</a></td>
           </tr>
           {{end}}
         </tbody>
@@ -70,11 +84,11 @@ GET /api/views/{resource-id}/columns.json</pre>
       <table>
         <thead><tr><th>Parameter</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>$select</code></td><td>Fields to return, or <code>count(*)</code></td></tr>
-          <tr><td><code>$where</code></td><td>Filter (comparisons, AND, OR, IS NULL)</td></tr>
-          <tr><td><code>$order</code></td><td>Sort field and direction</td></tr>
-          <tr><td><code>$limit</code></td><td>Max 1000 rows per request (default 1000)</td></tr>
-          <tr><td><code>$offset</code></td><td>Pagination offset</td></tr>
+          <tr><td data-label="Parameter"><code>$select</code></td><td data-label="Description">Fields to return, or <code>count(*)</code></td></tr>
+          <tr><td data-label="Parameter"><code>$where</code></td><td data-label="Description">Filter (comparisons, AND, OR, IS NULL)</td></tr>
+          <tr><td data-label="Parameter"><code>$order</code></td><td data-label="Description">Sort field and direction</td></tr>
+          <tr><td data-label="Parameter"><code>$limit</code></td><td data-label="Description">Max 1000 rows per request (default 1000)</td></tr>
+          <tr><td data-label="Parameter"><code>$offset</code></td><td data-label="Description">Pagination offset</td></tr>
         </tbody>
       </table>
 
