@@ -17,4 +17,4 @@ WORKDIR /app
 COPY --from=builder /pdcarchive /app/pdcarchive
 
 EXPOSE 8080
-CMD ["/app/pdcarchive", "serve"]
+CMD ["/app/pdcarchive"]

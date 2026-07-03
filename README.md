@@ -16,9 +16,10 @@ An independent mirror of Washington State Public Disclosure Commission (PDC) cam
 ```bash
 cp .env.example .env          # edit ADMIN_PASSWORD and SESSION_SECRET
 docker compose up -d          # start Postgres
-go run ./cmd/pdcarchive sync  # initial data load (long-running)
-go run ./cmd/pdcarchive serve # start server
+go run ./cmd/pdcarchive       # start server, scheduler, and admin UI
 ```
+
+Trigger the initial data load from the admin dashboard (**Sync All**), or wait for the scheduled sync on `SYNC_INTERVAL`.
 
 - Public site: http://localhost:8080/
 - SODA API: http://localhost:8080/resource/kv7h-kjye.json?$limit=1
@@ -52,7 +53,7 @@ See [.env.example](.env.example). Key variables:
 | `SESSION_SECRET` | Session cookie signing key |
 | `SOCRATA_APP_TOKEN` | Optional upstream app token for higher rate limits |
 
-Admin credentials are read once at startup. After editing `.env`, **save the file and restart** `serve` for changes to take effect. On startup, the server logs whether the password is `custom` or `DEFAULT`.
+Admin credentials are read once at startup. After editing `.env`, **save the file and restart** the application for changes to take effect. On startup, the server logs whether the password is `custom` or `DEFAULT`.
 
 ## Deploy to Railway
 
