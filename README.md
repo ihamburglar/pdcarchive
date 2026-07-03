@@ -78,8 +78,9 @@ Admin credentials are read once at startup. After editing `.env`, **save the fil
 
 ## Attribution
 
-Data sourced from the Washington State Public Disclosure Commission via [data.wa.gov](https://data.wa.gov). This project is an independent archive and is not affiliated with the PDC or the State of Washington.
+Data sourced from the Washington State Public Disclosure Commission via [data.wa.gov](https://data.wa.gov). This project is an independent archive and is not affiliated with the PDC or the State of Washington. Mirrored data is dedicated to the public domain under [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
 
 ## License
 
-GNU GPL v3 — see [LICENSE](LICENSE).
+- **Data**: [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) (Public Domain Dedication)
+- **Software**: GNU GPL v3 — see [LICENSE](LICENSE). Source code: [github.com/ihamburglar/pdcarchive](https://github.com/ihamburglar/pdcarchive)

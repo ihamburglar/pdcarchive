@@ -22,6 +22,10 @@
     a { color: var(--accent); }
     footer { text-align: center; padding: 2rem; color: #6c757d; font-size: 0.85rem; }
     .badge { display: inline-block; background: #d8f3dc; color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+    .license-row { display: flex; align-items: flex-start; gap: 1rem; margin-top: 0.75rem; }
+    .license-row img { flex-shrink: 0; border: 0; }
+    h3 { font-size: 1rem; margin: 1.25rem 0 0.5rem; color: var(--text); }
+    footer p { margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -81,12 +85,29 @@ curl "{{.BaseURL}}/resource/kv7h-kjye.json?$where=amount>500&$limit=2"</pre>
     </section>
 
     <section>
-      <h2>Attribution</h2>
-      <p>Data sourced from the Washington State Public Disclosure Commission via <a href="https://data.wa.gov">data.wa.gov</a>. This is an independent archive and is not affiliated with the PDC or the State of Washington.</p>
+      <h2>Licenses</h2>
+
+      <h3>Data</h3>
+      <p>Data sourced from the Washington State Public Disclosure Commission via <a href="https://data.wa.gov" target="_blank">data.wa.gov</a>. This is an independent archive and is not affiliated with the PDC or the State of Washington.</p>
+      <div class="license-row">
+        <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="license">
+          <img src="https://licensebuttons.net/p/zero/1.0/88x31.png" alt="CC0 1.0 Universal" width="88" height="31">
+        </a>
+        <p>To the extent possible under law, the mirrored data is dedicated to the public domain under <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0 Universal</a>.</p>
+      </div>
+
+      <h3>Open source</h3>
+      <div class="license-row">
+        <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="license">
+          <img src="https://www.gnu.org/graphics/gplv3-127x51.png" alt="GNU GPLv3" width="127" height="51">
+        </a>
+        <p>This project is <a href="https://github.com/ihamburglar/pdcarchive" target="_blank">open source on GitHub</a> and licensed under the <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GNU General Public License v3.0</a>.</p>
+      </div>
     </section>
   </main>
   <footer>
     <a href="/admin/login">Admin</a>
+    <p>Data: <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0</a> · Code: <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GPLv3</a> on <a href="https://github.com/ihamburglar/pdcarchive" target="_blank">GitHub</a></p>
   </footer>
 </body>
 </html>
