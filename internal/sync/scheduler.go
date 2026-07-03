@@ -32,6 +32,10 @@ func (sch *Scheduler) Start() {
 		for {
 			select {
 			case <-ticker.C:
+				if sch.syncer.AnyRunning() {
+					log.Printf("scheduler: skipping scheduled sync, import in progress")
+					continue
+				}
 				log.Printf("scheduler: starting scheduled sync for %d datasets", len(sch.datasets))
 				sch.syncer.SyncAllAsync(sch.datasets, models.SyncTriggerScheduled)
 			case <-sch.stopCh:

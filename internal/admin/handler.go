@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -177,6 +178,10 @@ func (h *Handler) SyncDataset(c *gin.Context) {
 }
 
 func (h *Handler) SyncAll(c *gin.Context) {
+	if h.Syncer.AnyRunning() {
+		c.JSON(http.StatusConflict, gin.H{"error": sync.ErrImportInProgress.Error()})
+		return
+	}
 	h.Syncer.SyncAllAsync(h.Config.Datasets, models.SyncTriggerManual)
 	c.JSON(http.StatusAccepted, gin.H{"message": "sync started for all datasets"})
 }
@@ -192,6 +197,24 @@ func (h *Handler) StopDataset(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "sync stop requested", "dataset_id": id})
+}
+
+func (h *Handler) ClearDataset(c *gin.Context) {
+	id := c.Param("id")
+	if !h.isConfigured(id) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dataset not configured"})
+		return
+	}
+	deleted, err := h.Syncer.ClearDataset(id)
+	if err != nil {
+		if errors.Is(err, sync.ErrSyncRunning) || errors.Is(err, sync.ErrImportInProgress) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "records deleted", "dataset_id": id, "deleted": deleted})
 }
 
 func (h *Handler) isConfigured(id string) bool {

@@ -15,7 +15,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-var ErrCancelled = errors.New("sync cancelled")
+var (
+	ErrCancelled         = errors.New("sync cancelled")
+	ErrImportInProgress  = errors.New("import in progress")
+	ErrSyncRunning       = errors.New("sync already running for this dataset")
+)
 
 type runningSync struct {
 	cancel context.CancelFunc
@@ -51,6 +55,12 @@ func (s *Syncer) IsRunning(datasetID string) bool {
 	defer s.mu.Unlock()
 	_, ok := s.active[datasetID]
 	return ok
+}
+
+func (s *Syncer) AnyRunning() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.active) > 0
 }
 
 func (s *Syncer) StopSync(datasetID string) bool {
@@ -122,6 +132,10 @@ func (s *Syncer) SyncDatasetAsync(datasetID, trigger string) bool {
 }
 
 func (s *Syncer) SyncAll(datasetIDs []string, trigger string) {
+	if s.AnyRunning() {
+		log.Printf("sync all skipped (%s): import in progress", trigger)
+		return
+	}
 	for _, id := range datasetIDs {
 		if s.IsRunning(id) {
 			log.Printf("skipping %s: sync already running", id)
@@ -184,12 +198,12 @@ func (s *Syncer) syncDataset(ctx context.Context, datasetID string, jobID uint) 
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return totalSynced, ErrCancelled
+			return s.abortSync(datasetID, datasetName, int64(offset), totalSynced)
 		}
 
 		if !firstPage {
 			if err := sleepWithContext(ctx, s.pageInterval); err != nil {
-				return totalSynced, ErrCancelled
+				return s.abortSync(datasetID, datasetName, int64(offset), totalSynced)
 			}
 		}
 		firstPage = false
@@ -230,7 +244,7 @@ func (s *Syncer) syncDataset(ctx context.Context, datasetID string, jobID uint) 
 		}
 
 		offset += len(rows)
-		s.saveProgress(datasetID, jobID, int64(offset), totalSynced)
+		s.saveProgress(datasetID, datasetName, jobID, int64(offset), totalSynced)
 
 		log.Printf("sync %s: offset %d, synced %d rows this run", datasetID, offset, totalSynced)
 
@@ -240,7 +254,7 @@ func (s *Syncer) syncDataset(ctx context.Context, datasetID string, jobID uint) 
 	}
 
 	if err := ctx.Err(); err != nil {
-		return totalSynced, ErrCancelled
+		return s.abortSync(datasetID, datasetName, int64(offset), totalSynced)
 	}
 
 	now := time.Now()
@@ -274,14 +288,76 @@ func sleepWithContext(ctx context.Context, d time.Duration) error {
 	}
 }
 
-func (s *Syncer) saveProgress(datasetID string, jobID uint, offset, rowsSynced int64) {
-	s.db.Model(&models.Dataset{}).Where("id = ?", datasetID).Updates(map[string]interface{}{
-		"sync_offset": offset,
-	})
+func (s *Syncer) saveProgress(datasetID, datasetName string, jobID uint, offset, rowsSynced int64) {
+	s.upsertDatasetOffset(datasetID, datasetName, offset)
 	s.db.Model(&models.SyncJob{}).Where("id = ?", jobID).Updates(map[string]interface{}{
 		"last_offset": offset,
 		"rows_synced": rowsSynced,
 	})
+}
+
+func (s *Syncer) upsertDatasetOffset(datasetID, name string, offset int64) {
+	if name == "" {
+		name = datasetID
+	}
+	ds := models.Dataset{
+		ID:         datasetID,
+		Name:       name,
+		SyncOffset: offset,
+		Columns:    datatypes.JSON("[]"),
+	}
+	s.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"name", "sync_offset"}),
+	}).Create(&ds)
+}
+
+func (s *Syncer) finalizeDatasetProgress(datasetID, name string, offset int64) {
+	if name == "" {
+		name = datasetID
+	}
+	var count int64
+	s.db.Model(&models.Record{}).Where("dataset_id = ?", datasetID).Count(&count)
+
+	ds := models.Dataset{
+		ID:         datasetID,
+		Name:       name,
+		SyncOffset: offset,
+		RowCount:   count,
+		Columns:    datatypes.JSON("[]"),
+	}
+	s.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"name", "sync_offset", "row_count"}),
+	}).Create(&ds)
+}
+
+func (s *Syncer) abortSync(datasetID, name string, offset int64, totalSynced int64) (int64, error) {
+	s.finalizeDatasetProgress(datasetID, name, offset)
+	return totalSynced, ErrCancelled
+}
+
+func (s *Syncer) ClearDataset(datasetID string) (int64, error) {
+	if s.IsRunning(datasetID) {
+		return 0, ErrSyncRunning
+	}
+	if s.AnyRunning() {
+		return 0, ErrImportInProgress
+	}
+
+	result := s.db.Where("dataset_id = ?", datasetID).Delete(&models.Record{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	s.db.Model(&models.Dataset{}).Where("id = ?", datasetID).Updates(map[string]interface{}{
+		"row_count":   0,
+		"sync_offset": 0,
+		"synced_at":   nil,
+	})
+
+	log.Printf("cleared %d records from dataset %s", result.RowsAffected, datasetID)
+	return result.RowsAffected, nil
 }
 
 func extractRowMeta(raw json.RawMessage) (rowID string, _ string) {

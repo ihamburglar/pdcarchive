@@ -24,6 +24,8 @@
     .status-cancelled { color: #6c757d; }
     .btn-danger { background: #dc3545; }
     .btn-danger:hover:not(:disabled) { background: #b02a37; }
+    .btn-outline-danger { background: #fff; color: #dc3545; border: 1px solid #dc3545; }
+    .btn-outline-danger:hover:not(:disabled) { background: #dc3545; color: #fff; }
     .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     #poll-indicator { font-size: 0.8rem; color: #6c757d; margin-left: 0.5rem; }
   </style>
@@ -86,7 +88,8 @@
             <div class="actions">
               ${d.running
                 ? `<button class="btn btn-danger stop-btn" data-id="${escapeHtml(d.id)}">Stop</button>`
-                : `<button class="btn sync-btn" data-id="${escapeHtml(d.id)}">Sync Now</button>`}
+                : `<button class="btn sync-btn" data-id="${escapeHtml(d.id)}">Sync Now</button>
+                   <button class="btn btn-outline-danger clear-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}">Delete Records</button>`}
             </div>
           </td>
         </tr>
@@ -96,6 +99,9 @@
       });
       tbody.querySelectorAll('.stop-btn').forEach(btn => {
         btn.addEventListener('click', () => stopSync(btn.dataset.id));
+      });
+      tbody.querySelectorAll('.clear-btn').forEach(btn => {
+        btn.addEventListener('click', () => clearRecords(btn.dataset.id, btn.dataset.name));
       });
     }
 
@@ -134,6 +140,24 @@
         document.getElementById('poll-indicator').textContent = anyRunning ? '· updating' : '';
       } catch (e) {
         console.error('status refresh failed', e);
+      }
+    }
+
+    async function clearRecords(id, name) {
+      const label = name || id;
+      if (!confirm(`Delete all mirrored records for ${label}? This cannot be undone. Next sync will start from the beginning.`)) {
+        return;
+      }
+      try {
+        const res = await fetch(`/admin/datasets/${id}/clear`, { method: 'POST' });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Failed to delete records');
+          return;
+        }
+        await refreshStatus();
+      } catch (e) {
+        alert('Failed to delete records');
       }
     }
 
