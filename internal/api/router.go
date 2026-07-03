@@ -75,9 +75,13 @@ func NewServer(cfg *config.Config, database *gorm.DB, syncer *sync.Syncer) (*Ser
 			protected.GET("/api/status", adminHandler.StatusAPI)
 			protected.POST("/logout", adminHandler.Logout)
 			protected.POST("/sync", adminHandler.SyncAll)
+			protected.POST("/datasets/migrate", adminHandler.MigrateAll)
+			protected.POST("/datasets/reconcile", adminHandler.ReconcileAll)
 			protected.POST("/datasets/:id/sync", adminHandler.SyncDataset)
 			protected.POST("/datasets/:id/stop", adminHandler.StopDataset)
 			protected.POST("/datasets/:id/clear", adminHandler.ClearDataset)
+			protected.POST("/datasets/:id/migrate", adminHandler.MigrateDataset)
+			protected.POST("/datasets/:id/reconcile", adminHandler.ReconcileDataset)
 		}
 	}
 

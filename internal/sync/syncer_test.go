@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ihamburglar/pdcarchive/internal/models"
+	"github.com/ihamburglar/pdcarchive/internal/storage"
 	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -91,6 +92,28 @@ func TestFinalizeDatasetProgressUpdatesRowCount(t *testing.T) {
 	}
 	if ds.SyncOffset != 2000 {
 		t.Fatalf("sync_offset = %d, want 2000", ds.SyncOffset)
+	}
+	if ds.RowCount != 2 {
+		t.Fatalf("row_count = %d, want 2", ds.RowCount)
+	}
+}
+
+func TestFinalizeDatasetProgressCountsDatasetTable(t *testing.T) {
+	db := testSyncerDB(t)
+	s := newTestSyncer(db)
+
+	if err := s.store.UpsertRecords("kv7h-kjye", []storage.DatasetRecord{
+		{RowID: "offset:0", Data: datatypes.JSON(`{"id":"1"}`)},
+		{RowID: "offset:1", Data: datatypes.JSON(`{"id":"1"}`)},
+	}); err != nil {
+		t.Fatalf("upsert records: %v", err)
+	}
+
+	s.finalizeDatasetProgress("kv7h-kjye", "Contributions", 2000)
+
+	var ds models.Dataset
+	if err := db.First(&ds, "id = ?", "kv7h-kjye").Error; err != nil {
+		t.Fatalf("dataset row not created: %v", err)
 	}
 	if ds.RowCount != 2 {
 		t.Fatalf("row_count = %d, want 2", ds.RowCount)

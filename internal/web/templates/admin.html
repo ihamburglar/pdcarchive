@@ -27,6 +27,8 @@
     .btn-outline-danger { background: #fff; color: #dc3545; border: 1px solid #dc3545; }
     .btn-outline-danger:hover:not(:disabled) { background: #dc3545; color: #fff; }
     .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .warning { color: #b45309; font-size: 0.8rem; margin-top: 0.25rem; }
+    .muted { color: #6c757d; font-size: 0.8rem; }
     #poll-indicator { font-size: 0.8rem; color: #6c757d; margin-left: 0.5rem; }
   </style>
 </head>
@@ -42,11 +44,15 @@
     <section>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
         <h2>Datasets</h2>
-        <button class="btn" type="button" id="sync-all-btn">Sync All</button>
+        <div class="actions">
+          <button class="btn btn-secondary" type="button" id="migrate-all-btn">Migrate All Tables</button>
+          <button class="btn btn-secondary" type="button" id="reconcile-all-btn">Reconcile Counts</button>
+          <button class="btn" type="button" id="sync-all-btn">Sync All</button>
+        </div>
       </div>
       <table>
         <thead>
-          <tr><th>Name</th><th>ID</th><th>Rows</th><th>Offset</th><th>Last Synced</th><th>Status</th><th>Action</th></tr>
+          <tr><th>Name</th><th>ID</th><th>Local Rows</th><th>Upstream Cursor</th><th>Table</th><th>Last Synced</th><th>Status</th><th>Action</th></tr>
         </thead>
         <tbody id="datasets-body"></tbody>
       </table>
@@ -73,15 +79,19 @@
     function renderDatasets(datasets) {
       const tbody = document.getElementById('datasets-body');
       if (!datasets.length) {
-        tbody.innerHTML = '<tr><td colspan="7">No datasets configured.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8">No datasets configured.</td></tr>';
         return;
       }
       tbody.innerHTML = datasets.map(d => `
         <tr>
-          <td>${escapeHtml(d.name)}</td>
+          <td>
+            ${escapeHtml(d.name)}
+            ${d.incomplete ? '<div class="warning">Cursor is ahead of stored rows; mirror may be incomplete.</div>' : ''}
+          </td>
           <td><code>${escapeHtml(d.id)}</code></td>
           <td>${d.row_count || '—'}</td>
           <td>${d.sync_offset || '0'}</td>
+          <td>${d.table_exists ? `<code>${escapeHtml(d.table_name)}</code>` : '<span class="muted">shared records table</span>'}</td>
           <td>${fmtTime(d.synced_at)}</td>
           <td>${d.running ? '<span class="status-running">syncing…</span>' : 'idle'}</td>
           <td>
@@ -89,6 +99,8 @@
               ${d.running
                 ? `<button class="btn btn-danger stop-btn" data-id="${escapeHtml(d.id)}">Stop</button>`
                 : `<button class="btn sync-btn" data-id="${escapeHtml(d.id)}">Sync Now</button>`}
+              <button class="btn btn-secondary migrate-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before migrating"' : ''}>Migrate Table</button>
+              <button class="btn btn-secondary reconcile-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before reconciling"' : ''}>Reconcile</button>
               <button class="btn btn-outline-danger clear-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before clearing"' : ''}>Clear Dataset</button>
             </div>
           </td>
@@ -102,6 +114,12 @@
       });
       tbody.querySelectorAll('.clear-btn').forEach(btn => {
         btn.addEventListener('click', () => clearRecords(btn.dataset.id, btn.dataset.name));
+      });
+      tbody.querySelectorAll('.migrate-btn').forEach(btn => {
+        btn.addEventListener('click', () => migrateDataset(btn.dataset.id, btn.dataset.name));
+      });
+      tbody.querySelectorAll('.reconcile-btn').forEach(btn => {
+        btn.addEventListener('click', () => reconcileDataset(btn.dataset.id, btn.dataset.name));
       });
     }
 
@@ -161,6 +179,50 @@
       }
     }
 
+    async function migrateDataset(id, name) {
+      const label = name || id;
+      if (!confirm(`Create/update the per-dataset table for ${label} from existing local records?`)) {
+        return;
+      }
+      await postAction(`/admin/datasets/${id}/migrate`, 'Failed to migrate dataset table');
+    }
+
+    async function reconcileDataset(id, name) {
+      const label = name || id;
+      if (!confirm(`Recompute local row count for ${label} from the database table?`)) {
+        return;
+      }
+      await postAction(`/admin/datasets/${id}/reconcile`, 'Failed to reconcile counts');
+    }
+
+    async function migrateAll() {
+      if (!confirm('Create/update per-dataset tables for all configured datasets from existing local records?')) {
+        return;
+      }
+      await postAction('/admin/datasets/migrate', 'Failed to migrate dataset tables');
+    }
+
+    async function reconcileAll() {
+      if (!confirm('Recompute local row counts for all configured datasets?')) {
+        return;
+      }
+      await postAction('/admin/datasets/reconcile', 'Failed to reconcile counts');
+    }
+
+    async function postAction(url, failureMessage) {
+      try {
+        const res = await fetch(url, { method: 'POST' });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || failureMessage);
+          return;
+        }
+        await refreshStatus();
+      } catch (e) {
+        alert(failureMessage);
+      }
+    }
+
     async function stopSync(id) {
       try {
         const res = await fetch(`/admin/datasets/${id}/stop`, { method: 'POST' });
@@ -191,6 +253,8 @@
     }
 
     document.getElementById('sync-all-btn').addEventListener('click', () => startSync(null));
+    document.getElementById('migrate-all-btn').addEventListener('click', migrateAll);
+    document.getElementById('reconcile-all-btn').addEventListener('click', reconcileAll);
     refreshStatus();
     setInterval(refreshStatus, 1000);
   </script>

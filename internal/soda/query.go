@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ihamburglar/pdcarchive/internal/models"
+	"github.com/ihamburglar/pdcarchive/internal/storage"
 	"github.com/ihamburglar/pdcarchive/internal/sync"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -28,7 +29,13 @@ type QueryParams struct {
 type QueryResult struct {
 	CountMode bool
 	Count     int64
-	Rows      []models.Record
+	Rows      []queryRecord
+}
+
+type queryRecord struct {
+	ID    uint
+	RowID string
+	Data  datatypes.JSON
 }
 
 func ParseQueryParams(r *http.Request) QueryParams {
@@ -70,11 +77,19 @@ func ExecuteQuery(db *gorm.DB, datasetID string, colTypes ColumnTypes, params Qu
 	if err != nil {
 		return nil, fmt.Errorf("invalid $where: %w", err)
 	}
+	store := storage.NewStore(db)
+	table, datasetTable, err := store.TableForRead(datasetID)
+	if err != nil {
+		return nil, err
+	}
 
 	selectLower := strings.ToLower(strings.ReplaceAll(params.Select, " ", ""))
 	if selectLower == "count(*)" {
 		var count int64
-		q := db.Model(&models.Record{}).Where("dataset_id = ?", datasetID)
+		q := db.Table(table)
+		if !datasetTable {
+			q = q.Where("dataset_id = ?", datasetID)
+		}
 		if whereSQL != "" {
 			q = q.Where(whereSQL)
 		}
@@ -84,7 +99,10 @@ func ExecuteQuery(db *gorm.DB, datasetID string, colTypes ColumnTypes, params Qu
 		return &QueryResult{CountMode: true, Count: count}, nil
 	}
 
-	q := db.Where("dataset_id = ?", datasetID)
+	q := db.Table(table)
+	if !datasetTable {
+		q = q.Where("dataset_id = ?", datasetID)
+	}
 	if whereSQL != "" {
 		q = q.Where(whereSQL)
 	}
@@ -96,12 +114,12 @@ func ExecuteQuery(db *gorm.DB, datasetID string, colTypes ColumnTypes, params Qu
 	if orderSQL != "" {
 		q = q.Order(orderSQL)
 	} else {
-		q = q.Order("row_id ASC")
+		q = q.Order("id ASC")
 	}
 
 	q = q.Limit(params.Limit).Offset(params.Offset)
 
-	var rows []models.Record
+	var rows []queryRecord
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -144,7 +162,7 @@ func BuildColumnTypesFromJSON(columnsJSON []byte) ColumnTypes {
 	return BuildColumnTypes(columns)
 }
 
-func ProjectRows(rows []models.Record, selectFields string) ([]json.RawMessage, error) {
+func ProjectRows(rows []queryRecord, selectFields string) ([]json.RawMessage, error) {
 	if selectFields == "" || selectFields == "*" {
 		out := make([]json.RawMessage, len(rows))
 		for i, r := range rows {

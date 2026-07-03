@@ -10,15 +10,15 @@ import (
 	"time"
 
 	"github.com/ihamburglar/pdcarchive/internal/models"
+	"github.com/ihamburglar/pdcarchive/internal/storage"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 var (
-	ErrCancelled         = errors.New("sync cancelled")
-	ErrImportInProgress  = errors.New("import in progress")
-	ErrSyncRunning       = errors.New("sync already running for this dataset")
+	ErrCancelled        = errors.New("sync cancelled")
+	ErrImportInProgress = errors.New("import in progress")
+	ErrSyncRunning      = errors.New("sync already running for this dataset")
 )
 
 type runningSync struct {
@@ -28,6 +28,7 @@ type runningSync struct {
 type Syncer struct {
 	db           *gorm.DB
 	client       *Client
+	store        *storage.Store
 	pageSize     int
 	pageInterval time.Duration
 	mu           sync.Mutex
@@ -44,6 +45,7 @@ func NewSyncer(db *gorm.DB, client *Client, pageSize int, pageInterval time.Dura
 	return &Syncer{
 		db:           db,
 		client:       client,
+		store:        storage.NewStore(db),
 		pageSize:     pageSize,
 		pageInterval: pageInterval,
 		active:       make(map[string]runningSync),
@@ -185,6 +187,9 @@ func (s *Syncer) syncDataset(ctx context.Context, datasetID string, jobID uint) 
 	if datasetName == "" {
 		datasetName = datasetID
 	}
+	if _, err := s.store.EnsureDatasetTable(datasetID); err != nil {
+		return 0, fmt.Errorf("ensure dataset table: %w", err)
+	}
 
 	var existing models.Dataset
 	s.db.First(&existing, "id = ?", datasetID)
@@ -220,24 +225,16 @@ func (s *Syncer) syncDataset(ctx context.Context, datasetID string, jobID uint) 
 			break
 		}
 
-		batch := make([]models.Record, 0, len(rows))
-		for _, raw := range rows {
-			rowID, _ := extractRowMeta(raw)
-			if rowID == "" {
-				continue
-			}
-			batch = append(batch, models.Record{
-				DatasetID: datasetID,
-				RowID:     rowID,
-				Data:      datatypes.JSON(raw),
+		batch := make([]storage.DatasetRecord, 0, len(rows))
+		for i, raw := range rows {
+			batch = append(batch, storage.DatasetRecord{
+				RowID: fmt.Sprintf("offset:%d", offset+i),
+				Data:  datatypes.JSON(raw),
 			})
 		}
 
 		if len(batch) > 0 {
-			if err := s.db.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "dataset_id"}, {Name: "row_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"data"}),
-			}).CreateInBatches(&batch, 500).Error; err != nil {
+			if err := s.store.UpsertRecords(datasetID, batch); err != nil {
 				return totalSynced, fmt.Errorf("upsert batch: %w", err)
 			}
 			totalSynced += int64(len(batch))
@@ -258,8 +255,10 @@ func (s *Syncer) syncDataset(ctx context.Context, datasetID string, jobID uint) 
 	}
 
 	now := time.Now()
-	var count int64
-	s.db.Model(&models.Record{}).Where("dataset_id = ?", datasetID).Count(&count)
+	count, err := s.store.CountDatasetRows(datasetID)
+	if err != nil {
+		return totalSynced, fmt.Errorf("count dataset rows: %w", err)
+	}
 
 	dataset := models.Dataset{
 		ID:           datasetID,
@@ -297,39 +296,20 @@ func (s *Syncer) saveProgress(datasetID, datasetName string, jobID uint, offset,
 }
 
 func (s *Syncer) upsertDatasetOffset(datasetID, name string, offset int64) {
-	if name == "" {
-		name = datasetID
+	if err := s.store.UpsertDatasetOffset(datasetID, name, offset); err != nil {
+		log.Printf("sync %s: save offset failed: %v", datasetID, err)
 	}
-	ds := models.Dataset{
-		ID:         datasetID,
-		Name:       name,
-		SyncOffset: offset,
-		Columns:    datatypes.JSON("[]"),
-	}
-	s.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"name", "sync_offset"}),
-	}).Create(&ds)
 }
 
 func (s *Syncer) finalizeDatasetProgress(datasetID, name string, offset int64) {
-	if name == "" {
-		name = datasetID
+	count, err := s.store.CountDatasetRows(datasetID)
+	if err != nil {
+		log.Printf("sync %s: count rows failed: %v", datasetID, err)
+		return
 	}
-	var count int64
-	s.db.Model(&models.Record{}).Where("dataset_id = ?", datasetID).Count(&count)
-
-	ds := models.Dataset{
-		ID:         datasetID,
-		Name:       name,
-		SyncOffset: offset,
-		RowCount:   count,
-		Columns:    datatypes.JSON("[]"),
+	if err := s.store.UpdateDatasetStats(datasetID, name, offset, count); err != nil {
+		log.Printf("sync %s: finalize progress failed: %v", datasetID, err)
 	}
-	s.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"name", "sync_offset", "row_count"}),
-	}).Create(&ds)
 }
 
 func (s *Syncer) abortSync(datasetID, name string, offset int64, totalSynced int64) (int64, error) {
@@ -345,31 +325,73 @@ func (s *Syncer) ClearDataset(datasetID string) (int64, error) {
 		return 0, ErrImportInProgress
 	}
 
-	result := s.db.Where("dataset_id = ?", datasetID).Delete(&models.Record{})
-	if result.Error != nil {
-		return 0, result.Error
+	deleted, err := s.store.ClearDataset(datasetID)
+	if err != nil {
+		return 0, err
 	}
 
-	s.db.Model(&models.Dataset{}).Where("id = ?", datasetID).Updates(map[string]interface{}{
-		"row_count":   0,
-		"sync_offset": 0,
-		"synced_at":   nil,
-	})
-
-	log.Printf("cleared %d records from dataset %s", result.RowsAffected, datasetID)
-	return result.RowsAffected, nil
+	log.Printf("cleared %d records from dataset %s", deleted, datasetID)
+	return deleted, nil
 }
 
-func extractRowMeta(raw json.RawMessage) (rowID string, _ string) {
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return "", ""
+func (s *Syncer) MigrateDataset(datasetID, name string) (int64, error) {
+	if s.IsRunning(datasetID) {
+		return 0, ErrSyncRunning
 	}
-	if idRaw, ok := m["id"]; ok {
-		var id string
-		if err := json.Unmarshal(idRaw, &id); err == nil {
-			rowID = id
+	if s.AnyRunning() {
+		return 0, ErrImportInProgress
+	}
+	count, err := s.store.MigrateDataset(datasetID, name)
+	if err != nil {
+		return 0, err
+	}
+	log.Printf("migrated dataset %s to per-dataset table with %d rows", datasetID, count)
+	return count, nil
+}
+
+func (s *Syncer) MigrateAll(datasets []string, names map[string]string) (map[string]int64, error) {
+	if s.AnyRunning() {
+		return nil, ErrImportInProgress
+	}
+	out := make(map[string]int64, len(datasets))
+	for _, id := range datasets {
+		count, err := s.store.MigrateDataset(id, names[id])
+		if err != nil {
+			return out, err
 		}
+		out[id] = count
+		log.Printf("migrated dataset %s to per-dataset table with %d rows", id, count)
 	}
-	return rowID, ""
+	return out, nil
+}
+
+func (s *Syncer) ReconcileDataset(datasetID, name string) (int64, error) {
+	if s.IsRunning(datasetID) {
+		return 0, ErrSyncRunning
+	}
+	if s.AnyRunning() {
+		return 0, ErrImportInProgress
+	}
+	count, err := s.store.ReconcileDataset(datasetID, name)
+	if err != nil {
+		return 0, err
+	}
+	log.Printf("reconciled dataset %s with %d rows", datasetID, count)
+	return count, nil
+}
+
+func (s *Syncer) ReconcileAll(datasets []string, names map[string]string) (map[string]int64, error) {
+	if s.AnyRunning() {
+		return nil, ErrImportInProgress
+	}
+	out := make(map[string]int64, len(datasets))
+	for _, id := range datasets {
+		count, err := s.store.ReconcileDataset(id, names[id])
+		if err != nil {
+			return out, err
+		}
+		out[id] = count
+		log.Printf("reconciled dataset %s with %d rows", id, count)
+	}
+	return out, nil
 }

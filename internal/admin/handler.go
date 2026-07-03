@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/ihamburglar/pdcarchive/internal/config"
 	"github.com/ihamburglar/pdcarchive/internal/models"
+	"github.com/ihamburglar/pdcarchive/internal/storage"
 	"github.com/ihamburglar/pdcarchive/internal/sync"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -79,12 +80,15 @@ func (h *Handler) Dashboard(c *gin.Context) {
 }
 
 type datasetStatus struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	RowCount   int64   `json:"row_count"`
-	SyncOffset int64   `json:"sync_offset"`
-	SyncedAt   *string `json:"synced_at,omitempty"`
-	Running    bool    `json:"running"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	RowCount    int64   `json:"row_count"`
+	SyncOffset  int64   `json:"sync_offset"`
+	TableName   string  `json:"table_name"`
+	TableExists bool    `json:"table_exists"`
+	Incomplete  bool    `json:"incomplete"`
+	SyncedAt    *string `json:"synced_at,omitempty"`
+	Running     bool    `json:"running"`
 }
 
 type jobStatus struct {
@@ -106,6 +110,7 @@ func (h *Handler) StatusAPI(c *gin.Context) {
 func (h *Handler) buildStatusData() gin.H {
 	var datasets []models.Dataset
 	h.DB.Order("name").Find(&datasets)
+	store := storage.NewStore(h.DB)
 
 	existing := make(map[string]bool)
 	for _, d := range datasets {
@@ -119,12 +124,20 @@ func (h *Handler) buildStatusData() gin.H {
 
 	dsOut := make([]datasetStatus, 0, len(datasets))
 	for _, d := range datasets {
+		tableName, tableExists, _ := store.DatasetTableExists(d.ID)
+		rowCount, err := store.CountDatasetRows(d.ID)
+		if err != nil {
+			rowCount = d.RowCount
+		}
 		ds := datasetStatus{
-			ID:         d.ID,
-			Name:       d.Name,
-			RowCount:   d.RowCount,
-			SyncOffset: d.SyncOffset,
-			Running:    h.Syncer.IsRunning(d.ID),
+			ID:          d.ID,
+			Name:        d.Name,
+			RowCount:    rowCount,
+			SyncOffset:  d.SyncOffset,
+			TableName:   tableName,
+			TableExists: tableExists,
+			Incomplete:  d.SyncOffset > rowCount,
+			Running:     h.Syncer.IsRunning(d.ID),
 		}
 		if d.SyncedAt != nil {
 			s := d.SyncedAt.Format(time.RFC3339)
@@ -215,6 +228,83 @@ func (h *Handler) ClearDataset(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "records deleted", "dataset_id": id, "deleted": deleted})
+}
+
+func (h *Handler) MigrateDataset(c *gin.Context) {
+	id := c.Param("id")
+	if !h.isConfigured(id) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dataset not configured"})
+		return
+	}
+	count, err := h.Syncer.MigrateDataset(id, h.datasetName(id))
+	if err != nil {
+		h.writeSyncerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "dataset table migrated", "dataset_id": id, "rows": count})
+}
+
+func (h *Handler) MigrateAll(c *gin.Context) {
+	counts, err := h.Syncer.MigrateAll(h.Config.Datasets, h.datasetNames())
+	if err != nil {
+		h.writeSyncerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "dataset tables migrated", "rows": counts})
+}
+
+func (h *Handler) ReconcileDataset(c *gin.Context) {
+	id := c.Param("id")
+	if !h.isConfigured(id) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dataset not configured"})
+		return
+	}
+	count, err := h.Syncer.ReconcileDataset(id, h.datasetName(id))
+	if err != nil {
+		h.writeSyncerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "dataset counts reconciled", "dataset_id": id, "rows": count})
+}
+
+func (h *Handler) ReconcileAll(c *gin.Context) {
+	counts, err := h.Syncer.ReconcileAll(h.Config.Datasets, h.datasetNames())
+	if err != nil {
+		h.writeSyncerError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "dataset counts reconciled", "rows": counts})
+}
+
+func (h *Handler) writeSyncerError(c *gin.Context, err error) {
+	if errors.Is(err, sync.ErrSyncRunning) || errors.Is(err, sync.ErrImportInProgress) {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+}
+
+func (h *Handler) datasetNames() map[string]string {
+	var datasets []models.Dataset
+	h.DB.Find(&datasets)
+	names := make(map[string]string, len(datasets))
+	for _, d := range datasets {
+		names[d.ID] = d.Name
+	}
+	for _, id := range h.Config.Datasets {
+		if names[id] == "" {
+			names[id] = id
+		}
+	}
+	return names
+}
+
+func (h *Handler) datasetName(id string) string {
+	names := h.datasetNames()
+	if names[id] == "" {
+		return id
+	}
+	return names[id]
 }
 
 func (h *Handler) isConfigured(id string) bool {

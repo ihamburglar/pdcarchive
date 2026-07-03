@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/ihamburglar/pdcarchive/internal/config"
 	"github.com/ihamburglar/pdcarchive/internal/models"
+	"github.com/ihamburglar/pdcarchive/internal/storage"
 	"gorm.io/gorm"
 )
 
@@ -21,6 +22,7 @@ func NewHandler(db *gorm.DB, cfg *config.Config) *Handler {
 func (h *Handler) Home(c *gin.Context) {
 	var datasets []models.Dataset
 	h.DB.Order("name").Find(&datasets)
+	store := storage.NewStore(h.DB)
 
 	existing := make(map[string]bool)
 	for _, d := range datasets {
@@ -29,6 +31,11 @@ func (h *Handler) Home(c *gin.Context) {
 	for _, id := range h.Config.Datasets {
 		if !existing[id] {
 			datasets = append(datasets, models.Dataset{ID: id, Name: id})
+		}
+	}
+	for i := range datasets {
+		if count, err := store.CountDatasetRows(datasets[i].ID); err == nil {
+			datasets[i].RowCount = count
 		}
 	}
 
