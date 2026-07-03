@@ -91,14 +91,14 @@
           <td><code>${escapeHtml(d.id)}</code></td>
           <td>${d.row_count || '—'}</td>
           <td>${d.sync_offset || '0'}</td>
-          <td>${d.table_exists ? `<code>${escapeHtml(d.table_name)}</code>` : '<span class="muted">shared records table</span>'}</td>
+          <td>${d.table_exists ? '<code>' + escapeHtml(d.table_name) + '</code>' : '<span class="muted">shared records table</span>'}</td>
           <td>${fmtTime(d.synced_at)}</td>
           <td>${d.running ? '<span class="status-running">syncing…</span>' : 'idle'}</td>
           <td>
             <div class="actions">
               ${d.running
-                ? `<button class="btn btn-danger stop-btn" data-id="${escapeHtml(d.id)}">Stop</button>`
-                : `<button class="btn sync-btn" data-id="${escapeHtml(d.id)}">Sync Now</button>`}
+                ? '<button class="btn btn-danger stop-btn" data-id="' + escapeHtml(d.id) + '">Stop</button>'
+                : '<button class="btn sync-btn" data-id="' + escapeHtml(d.id) + '">Sync Now</button>'}
               <button class="btn btn-secondary migrate-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before migrating"' : ''}>Migrate Table</button>
               <button class="btn btn-secondary reconcile-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before reconciling"' : ''}>Reconcile</button>
               <button class="btn btn-outline-danger clear-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before clearing"' : ''}>Clear Dataset</button>
