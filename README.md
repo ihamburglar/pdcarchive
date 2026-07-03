@@ -43,6 +43,8 @@ See [.env.example](.env.example). Key variables:
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string |
+| `DB_MAX_OPEN_CONNS` | Max open PostgreSQL connections (default `12`) |
+| `DB_MAX_IDLE_CONNS` | Max idle PostgreSQL connections (default `5`) |
 | `PORT` | HTTP port (Railway sets automatically) |
 | `SOURCE_BASE_URL` | Upstream Socrata host (default `https://data.wa.gov`) |
 | `DATASETS` | Comma-separated resource IDs to mirror |

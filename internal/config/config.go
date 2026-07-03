@@ -15,18 +15,20 @@ import (
 const defaultAdminPassword = "change-me"
 
 type Config struct {
-	DatabaseURL     string
-	Port            string
-	SourceBaseURL   string
-	SocrataAppToken string
-	Datasets        []string
-	SyncInterval    time.Duration
-	SyncPageSize    int
+	DatabaseURL      string
+	DBMaxOpenConns   int
+	DBMaxIdleConns   int
+	Port             string
+	SourceBaseURL    string
+	SocrataAppToken  string
+	Datasets         []string
+	SyncInterval     time.Duration
+	SyncPageSize     int
 	SyncPageInterval time.Duration
-	AdminUsername   string
-	AdminPassword   string
-	SessionSecret   string
-	Production      bool
+	AdminUsername    string
+	AdminPassword    string
+	SessionSecret    string
+	Production       bool
 }
 
 func Load() (*Config, error) {
@@ -62,9 +64,16 @@ func Load() (*Config, error) {
 	if err != nil {
 		syncPageInterval = time.Second
 	}
+	dbMaxOpenConns := getPositiveIntEnv("DB_MAX_OPEN_CONNS", 12)
+	dbMaxIdleConns := getPositiveIntEnv("DB_MAX_IDLE_CONNS", 5)
+	if dbMaxIdleConns > dbMaxOpenConns {
+		dbMaxIdleConns = dbMaxOpenConns
+	}
 
 	cfg := &Config{
 		DatabaseURL:      getEnv("DATABASE_URL", ""),
+		DBMaxOpenConns:   dbMaxOpenConns,
+		DBMaxIdleConns:   dbMaxIdleConns,
 		Port:             getEnv("PORT", "8080"),
 		SourceBaseURL:    strings.TrimRight(getEnv("SOURCE_BASE_URL", "https://data.wa.gov"), "/"),
 		SocrataAppToken:  getEnv("SOCRATA_APP_TOKEN", ""),
@@ -251,6 +260,15 @@ func unquoteEnvValue(value string) string {
 func getEnv(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func getPositiveIntEnv(key string, fallback int) int {
+	if raw := getEnv(key, ""); raw != "" {
+		if n, err := parsePositiveInt(raw); err == nil {
+			return n
+		}
 	}
 	return fallback
 }

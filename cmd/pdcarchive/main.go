@@ -16,7 +16,7 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	database, err := db.Connect(cfg.DatabaseURL, cfg.Production)
+	database, err := db.Connect(cfg.DatabaseURL, cfg.Production, cfg.DBMaxOpenConns, cfg.DBMaxIdleConns)
 	if err != nil {
 		log.Fatalf("database: %v", err)
 	}

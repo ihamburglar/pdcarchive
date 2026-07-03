@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func Connect(databaseURL string, production bool) (*gorm.DB, error) {
+func Connect(databaseURL string, production bool, maxOpenConns, maxIdleConns int) (*gorm.DB, error) {
 	dsn := databaseURL
 	if !strings.Contains(dsn, "sslmode=") {
 		sep := "?"
@@ -47,8 +47,8 @@ func Connect(databaseURL string, production bool) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	sqlDB.SetMaxOpenConns(25)
-	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	sqlDB.SetMaxIdleConns(maxIdleConns)
 
 	return database, nil
 }

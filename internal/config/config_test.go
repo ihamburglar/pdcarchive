@@ -102,6 +102,54 @@ func TestValidateAdminPasswordDevAllowsDefault(t *testing.T) {
 	}
 }
 
+func TestDBPoolDefaults(t *testing.T) {
+	t.Setenv("DB_MAX_OPEN_CONNS", "")
+	t.Setenv("DB_MAX_IDLE_CONNS", "")
+
+	open := getPositiveIntEnv("DB_MAX_OPEN_CONNS", 12)
+	idle := getPositiveIntEnv("DB_MAX_IDLE_CONNS", 5)
+	if idle > open {
+		idle = open
+	}
+	if open != 12 {
+		t.Fatalf("open conns = %d, want 12", open)
+	}
+	if idle != 5 {
+		t.Fatalf("idle conns = %d, want 5", idle)
+	}
+}
+
+func TestDBPoolEnvOverride(t *testing.T) {
+	t.Setenv("DB_MAX_OPEN_CONNS", "20")
+	t.Setenv("DB_MAX_IDLE_CONNS", "7")
+
+	open := getPositiveIntEnv("DB_MAX_OPEN_CONNS", 12)
+	idle := getPositiveIntEnv("DB_MAX_IDLE_CONNS", 5)
+	if idle > open {
+		idle = open
+	}
+	if open != 20 {
+		t.Fatalf("open conns = %d, want 20", open)
+	}
+	if idle != 7 {
+		t.Fatalf("idle conns = %d, want 7", idle)
+	}
+}
+
+func TestDBPoolIdleClampedToOpen(t *testing.T) {
+	t.Setenv("DB_MAX_OPEN_CONNS", "4")
+	t.Setenv("DB_MAX_IDLE_CONNS", "9")
+
+	open := getPositiveIntEnv("DB_MAX_OPEN_CONNS", 12)
+	idle := getPositiveIntEnv("DB_MAX_IDLE_CONNS", 5)
+	if idle > open {
+		idle = open
+	}
+	if idle != 4 {
+		t.Fatalf("idle conns = %d, want 4", idle)
+	}
+}
+
 func TestUnquoteEnvValue(t *testing.T) {
 	tests := []struct {
 		in, want string
