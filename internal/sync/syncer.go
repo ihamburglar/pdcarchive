@@ -333,17 +333,3 @@ func (s *Syncer) ClearDataset(datasetID string) (int64, error) {
 	log.Printf("cleared %d records from dataset %s", deleted, datasetID)
 	return deleted, nil
 }
-
-func (s *Syncer) RenameDatasetTables(datasetIDs []string) ([]storage.RenameResult, error) {
-	if s.AnyRunning() {
-		return nil, ErrImportInProgress
-	}
-	results, err := s.store.RenameDatasetTables(datasetIDs)
-	if err != nil {
-		return results, err
-	}
-	for _, result := range results {
-		log.Printf("dataset table rename %s: %s -> %s (%s, %d rows)", result.DatasetID, result.OldTable, result.NewTable, result.Action, result.Rows)
-	}
-	return results, nil
-}

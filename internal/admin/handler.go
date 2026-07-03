@@ -230,15 +230,6 @@ func (h *Handler) ClearDataset(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "records deleted", "dataset_id": id, "deleted": deleted})
 }
 
-func (h *Handler) RenameTables(c *gin.Context) {
-	results, err := h.Syncer.RenameDatasetTables(h.Config.Datasets)
-	if err != nil {
-		h.writeSyncerError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "dataset tables renamed", "results": results})
-}
-
 func (h *Handler) writeSyncerError(c *gin.Context, err error) {
 	if errors.Is(err, sync.ErrSyncRunning) || errors.Is(err, sync.ErrImportInProgress) {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})

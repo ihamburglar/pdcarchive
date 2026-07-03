@@ -45,7 +45,6 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
         <h2>Datasets</h2>
         <div class="actions">
-          <button class="btn btn-secondary" type="button" id="rename-tables-btn">Rename Tables</button>
           <button class="btn" type="button" id="sync-all-btn">Sync All</button>
         </div>
       </div>
@@ -170,13 +169,6 @@
       }
     }
 
-    async function renameTables() {
-      if (!confirm('Rename existing ID-based dataset tables to readable names? This is safe to re-run.')) {
-        return;
-      }
-      await postAction('/admin/datasets/rename-tables', 'Failed to rename dataset tables');
-    }
-
     async function postAction(url, failureMessage) {
       try {
         const res = await fetch(url, { method: 'POST' });
@@ -221,7 +213,6 @@
     }
 
     document.getElementById('sync-all-btn').addEventListener('click', () => startSync(null));
-    document.getElementById('rename-tables-btn').addEventListener('click', renameTables);
     refreshStatus();
     setInterval(refreshStatus, 1000);
   </script>

@@ -161,19 +161,3 @@ func TestClearDatasetBlocksWhileImportRunning(t *testing.T) {
 		t.Fatalf("clear while same dataset running: got %v, want ErrSyncRunning", err)
 	}
 }
-
-func TestRenameDatasetTablesBlocksWhileImportRunning(t *testing.T) {
-	db := testSyncerDB(t)
-	s := newTestSyncer(db)
-
-	_, release, err := s.begin("running-id")
-	if err != nil {
-		t.Fatalf("begin: %v", err)
-	}
-	defer release()
-
-	_, err = s.RenameDatasetTables([]string{"kv7h-kjye"})
-	if err != ErrImportInProgress {
-		t.Fatalf("rename while import running: got %v, want ErrImportInProgress", err)
-	}
-}

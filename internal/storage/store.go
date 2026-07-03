@@ -48,14 +48,6 @@ func DatasetTableName(datasetID string) (string, error) {
 	return "dataset_" + slug, nil
 }
 
-func LegacyDatasetTableName(datasetID string) (string, error) {
-	slug, err := datasetIDSlug(datasetID)
-	if err != nil {
-		return "", err
-	}
-	return "dataset_" + slug + "_records", nil
-}
-
 func datasetIDSlug(datasetID string) (string, error) {
 	if datasetID == "" {
 		return "", ErrInvalidDatasetID
@@ -133,91 +125,6 @@ func (s *Store) CountDatasetRows(datasetID string) (int64, error) {
 		return 0, err
 	}
 	return count, nil
-}
-
-type RenameResult struct {
-	DatasetID string `json:"dataset_id"`
-	OldTable  string `json:"old_table"`
-	NewTable  string `json:"new_table"`
-	Action    string `json:"action"`
-	Rows      int64  `json:"rows"`
-}
-
-func (s *Store) RenameDatasetTables(datasetIDs []string) ([]RenameResult, error) {
-	results := make([]RenameResult, 0, len(datasetIDs))
-	for _, datasetID := range datasetIDs {
-		result, err := s.RenameDatasetTable(datasetID)
-		if err != nil {
-			return results, err
-		}
-		results = append(results, result)
-	}
-	return results, nil
-}
-
-func (s *Store) RenameDatasetTable(datasetID string) (RenameResult, error) {
-	oldTable, err := LegacyDatasetTableName(datasetID)
-	if err != nil {
-		return RenameResult{}, err
-	}
-	newTable, err := DatasetTableName(datasetID)
-	if err != nil {
-		return RenameResult{}, err
-	}
-	result := RenameResult{
-		DatasetID: datasetID,
-		OldTable:  oldTable,
-		NewTable:  newTable,
-	}
-
-	oldExists := s.db.Migrator().HasTable(oldTable)
-	newExists := s.db.Migrator().HasTable(newTable)
-
-	switch {
-	case oldExists && !newExists:
-		if err := s.db.Exec(fmt.Sprintf(
-			`ALTER TABLE %s RENAME TO %s`,
-			quoteIdentifier(oldTable),
-			quoteIdentifier(newTable),
-		)).Error; err != nil {
-			return result, err
-		}
-		result.Action = "renamed"
-	case oldExists && newExists:
-		if _, err := s.EnsureDatasetTable(datasetID); err != nil {
-			return result, err
-		}
-		if err := s.db.Exec(fmt.Sprintf(
-			`INSERT INTO %s ("row_id", "data")
-			 SELECT "row_id", "data" FROM %s
-			 WHERE 1 = 1
-			 ON CONFLICT ("row_id") DO UPDATE SET "data" = EXCLUDED."data"`,
-			quoteIdentifier(newTable),
-			quoteIdentifier(oldTable),
-		)).Error; err != nil {
-			return result, err
-		}
-		if err := s.db.Migrator().DropTable(oldTable); err != nil {
-			return result, err
-		}
-		result.Action = "merged"
-	case !oldExists && newExists:
-		result.Action = "already_renamed"
-	default:
-		if _, err := s.EnsureDatasetTable(datasetID); err != nil {
-			return result, err
-		}
-		result.Action = "created"
-	}
-	if _, err := s.EnsureDatasetTable(datasetID); err != nil {
-		return result, err
-	}
-	count, err := s.CountDatasetRows(datasetID)
-	if err != nil {
-		return result, err
-	}
-	result.Rows = count
-	return result, nil
 }
 
 func (s *Store) UpsertDatasetOffset(datasetID, name string, offset int64) error {
