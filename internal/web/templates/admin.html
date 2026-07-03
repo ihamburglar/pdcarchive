@@ -88,8 +88,8 @@
             <div class="actions">
               ${d.running
                 ? `<button class="btn btn-danger stop-btn" data-id="${escapeHtml(d.id)}">Stop</button>`
-                : `<button class="btn sync-btn" data-id="${escapeHtml(d.id)}">Sync Now</button>
-                   <button class="btn btn-outline-danger clear-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}">Delete Records</button>`}
+                : `<button class="btn sync-btn" data-id="${escapeHtml(d.id)}">Sync Now</button>`}
+              <button class="btn btn-outline-danger clear-btn" data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name)}"${d.running ? ' disabled title="Stop sync before clearing"' : ''}>Clear Dataset</button>
             </div>
           </td>
         </tr>
