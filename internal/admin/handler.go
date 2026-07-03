@@ -147,7 +147,7 @@ func (h *Handler) buildStatusData() gin.H {
 	}
 
 	var jobs []models.SyncJob
-	h.DB.Order("id DESC").Limit(20).Find(&jobs)
+	h.DB.Order("id DESC").Limit(10).Find(&jobs)
 
 	jobsOut := make([]jobStatus, 0, len(jobs))
 	for _, j := range jobs {
