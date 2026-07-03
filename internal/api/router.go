@@ -72,9 +72,11 @@ func NewServer(cfg *config.Config, database *gorm.DB, syncer *sync.Syncer) (*Ser
 		protected.Use(adminHandler.RequireAuth())
 		{
 			protected.GET("", adminHandler.Dashboard)
+			protected.GET("/api/status", adminHandler.StatusAPI)
 			protected.POST("/logout", adminHandler.Logout)
 			protected.POST("/sync", adminHandler.SyncAll)
 			protected.POST("/datasets/:id/sync", adminHandler.SyncDataset)
+			protected.POST("/datasets/:id/stop", adminHandler.StopDataset)
 		}
 	}
 

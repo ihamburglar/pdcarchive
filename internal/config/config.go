@@ -21,6 +21,8 @@ type Config struct {
 	SocrataAppToken string
 	Datasets        []string
 	SyncInterval    time.Duration
+	SyncPageSize    int
+	SyncPageInterval time.Duration
 	AdminUsername   string
 	AdminPassword   string
 	SessionSecret   string
@@ -49,17 +51,31 @@ func Load() (*Config, error) {
 
 	adminUser, adminPass := resolveAdminCreds(envPath)
 
+	syncPageSize := 1000
+	if raw := getEnv("SYNC_PAGE_SIZE", "1000"); raw != "" {
+		if n, err := parsePositiveInt(raw); err == nil {
+			syncPageSize = n
+		}
+	}
+
+	syncPageInterval, err := time.ParseDuration(getEnv("SYNC_PAGE_INTERVAL", "1s"))
+	if err != nil {
+		syncPageInterval = time.Second
+	}
+
 	cfg := &Config{
-		DatabaseURL:     getEnv("DATABASE_URL", ""),
-		Port:            getEnv("PORT", "8080"),
-		SourceBaseURL:   strings.TrimRight(getEnv("SOURCE_BASE_URL", "https://data.wa.gov"), "/"),
-		SocrataAppToken: getEnv("SOCRATA_APP_TOKEN", ""),
-		Datasets:        cleaned,
-		SyncInterval:    syncInterval,
-		AdminUsername:   adminUser,
-		AdminPassword:   adminPass,
-		SessionSecret:   getEnv("SESSION_SECRET", "dev-secret-change-me"),
-		Production:      production,
+		DatabaseURL:      getEnv("DATABASE_URL", ""),
+		Port:             getEnv("PORT", "8080"),
+		SourceBaseURL:    strings.TrimRight(getEnv("SOURCE_BASE_URL", "https://data.wa.gov"), "/"),
+		SocrataAppToken:  getEnv("SOCRATA_APP_TOKEN", ""),
+		Datasets:         cleaned,
+		SyncInterval:     syncInterval,
+		SyncPageSize:     syncPageSize,
+		SyncPageInterval: syncPageInterval,
+		AdminUsername:    adminUser,
+		AdminPassword:    adminPass,
+		SessionSecret:    getEnv("SESSION_SECRET", "dev-secret-change-me"),
+		Production:       production,
 	}
 
 	if err := validateAdminPassword(cfg); err != nil {
@@ -237,4 +253,18 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func parsePositiveInt(s string) (int, error) {
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("invalid integer: %s", s)
+		}
+		n = n*10 + int(c-'0')
+	}
+	if n <= 0 {
+		return 0, fmt.Errorf("must be positive: %s", s)
+	}
+	return n, nil
 }

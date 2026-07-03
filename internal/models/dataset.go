@@ -13,4 +13,5 @@ type Dataset struct {
 	LastModified *time.Time
 	SyncedAt     *time.Time
 	RowCount     int64 `gorm:"default:0"`
+	SyncOffset   int64 `gorm:"default:0"`
 }

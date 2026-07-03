@@ -41,7 +41,7 @@ func runServe(cfg *config.Config) {
 	}
 
 	client := sync.NewClient(cfg.SourceBaseURL, cfg.SocrataAppToken)
-	syncer := sync.NewSyncer(database, client)
+	syncer := sync.NewSyncer(database, client, cfg.SyncPageSize, cfg.SyncPageInterval)
 
 	server, err := api.NewServer(cfg, database, syncer)
 	if err != nil {
@@ -65,7 +65,7 @@ func runSync(cfg *config.Config) {
 	}
 
 	client := sync.NewClient(cfg.SourceBaseURL, cfg.SocrataAppToken)
-	syncer := sync.NewSyncer(database, client)
+	syncer := sync.NewSyncer(database, client, cfg.SyncPageSize, cfg.SyncPageInterval)
 
 	log.Printf("syncing %d datasets", len(cfg.Datasets))
 	syncer.SyncAll(cfg.Datasets, models.SyncTriggerCLI)

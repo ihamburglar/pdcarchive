@@ -46,6 +46,8 @@ See [.env.example](.env.example). Key variables:
 | `SOURCE_BASE_URL` | Upstream Socrata host (default `https://data.wa.gov`) |
 | `DATASETS` | Comma-separated resource IDs to mirror |
 | `SYNC_INTERVAL` | Background sync interval (default `24h`) |
+| `SYNC_PAGE_SIZE` | Records fetched per upstream request (default `1000`) |
+| `SYNC_PAGE_INTERVAL` | Delay between upstream requests (default `1s`) |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Admin dashboard credentials |
 | `SESSION_SECRET` | Session cookie signing key |
 | `SOCRATA_APP_TOKEN` | Optional upstream app token for higher rate limits |

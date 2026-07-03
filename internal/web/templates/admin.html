@@ -9,23 +9,28 @@
     body { font-family: system-ui, sans-serif; background: #f8f9fa; color: #1a1a2e; line-height: 1.5; }
     header { background: var(--accent); color: #fff; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
     header a { color: #fff; text-decoration: none; font-size: 0.9rem; }
-    main { max-width: 960px; margin: 0 auto; padding: 2rem 1rem; }
+    main { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem; }
     section { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
     h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--accent); }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
     .btn { display: inline-block; padding: 0.3rem 0.75rem; background: var(--accent); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; text-decoration: none; }
-    .btn:hover { background: #1b4332; }
+    .btn:hover:not(:disabled) { background: #1b4332; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-secondary { background: #6c757d; }
     .status-running { color: #fd7e14; font-weight: 600; }
     .status-completed { color: var(--accent); }
     .status-failed { color: #dc3545; }
-    form { display: inline; }
+    .status-cancelled { color: #6c757d; }
+    .btn-danger { background: #dc3545; }
+    .btn-danger:hover:not(:disabled) { background: #b02a37; }
+    .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    #poll-indicator { font-size: 0.8rem; color: #6c757d; margin-left: 0.5rem; }
   </style>
 </head>
 <body>
   <header>
-    <span>Admin Dashboard</span>
+    <span>Admin Dashboard <span id="poll-indicator"></span></span>
     <div>
       <a href="/" style="margin-right:1rem">Public site</a>
       <form method="POST" action="/admin/logout" style="display:inline"><button class="btn btn-secondary" type="submit">Logout</button></form>
@@ -35,28 +40,13 @@
     <section>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
         <h2>Datasets</h2>
-        <form method="POST" action="/admin/sync"><button class="btn" type="submit">Sync All</button></form>
+        <button class="btn" type="button" id="sync-all-btn">Sync All</button>
       </div>
       <table>
         <thead>
-          <tr><th>Name</th><th>ID</th><th>Rows</th><th>Last Synced</th><th>Status</th><th>Action</th></tr>
+          <tr><th>Name</th><th>ID</th><th>Rows</th><th>Offset</th><th>Last Synced</th><th>Status</th><th>Action</th></tr>
         </thead>
-        <tbody>
-          {{range .Datasets}}
-          <tr>
-            <td>{{.Name}}</td>
-            <td><code>{{.ID}}</code></td>
-            <td>{{if .RowCount}}{{.RowCount}}{{else}}—{{end}}</td>
-            <td>{{if .SyncedAt}}{{.SyncedAt.Format "2006-01-02 15:04"}}{{else}}—{{end}}</td>
-            <td>{{if index $.Running .ID}}<span class="status-running">syncing…</span>{{else}}idle{{end}}</td>
-            <td>
-              <form method="POST" action="/admin/datasets/{{.ID}}/sync">
-                <button class="btn" type="submit" {{if index $.Running .ID}}disabled{{end}}>Sync Now</button>
-              </form>
-            </td>
-          </tr>
-          {{end}}
-        </tbody>
+        <tbody id="datasets-body"></tbody>
       </table>
     </section>
 
@@ -64,24 +54,121 @@
       <h2>Recent Sync Jobs</h2>
       <table>
         <thead>
-          <tr><th>Dataset</th><th>Trigger</th><th>Status</th><th>Rows</th><th>Started</th><th>Error</th></tr>
+          <tr><th>Dataset</th><th>Trigger</th><th>Status</th><th>Rows</th><th>Offset</th><th>Started</th><th>Error</th></tr>
         </thead>
-        <tbody>
-          {{range .Jobs}}
-          <tr>
-            <td><code>{{.DatasetID}}</code></td>
-            <td>{{.Trigger}}</td>
-            <td class="status-{{.Status}}">{{.Status}}</td>
-            <td>{{.RowsSynced}}</td>
-            <td>{{if .StartedAt}}{{.StartedAt.Format "2006-01-02 15:04"}}{{end}}</td>
-            <td>{{.Error}}</td>
-          </tr>
-          {{else}}
-          <tr><td colspan="6">No sync jobs yet.</td></tr>
-          {{end}}
-        </tbody>
+        <tbody id="jobs-body"></tbody>
       </table>
     </section>
   </main>
+
+  <script>
+    function fmtTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleString();
+    }
+
+    function renderDatasets(datasets) {
+      const tbody = document.getElementById('datasets-body');
+      if (!datasets.length) {
+        tbody.innerHTML = '<tr><td colspan="7">No datasets configured.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = datasets.map(d => `
+        <tr>
+          <td>${escapeHtml(d.name)}</td>
+          <td><code>${escapeHtml(d.id)}</code></td>
+          <td>${d.row_count || '—'}</td>
+          <td>${d.sync_offset || '0'}</td>
+          <td>${fmtTime(d.synced_at)}</td>
+          <td>${d.running ? '<span class="status-running">syncing…</span>' : 'idle'}</td>
+          <td>
+            <div class="actions">
+              ${d.running
+                ? `<button class="btn btn-danger stop-btn" data-id="${escapeHtml(d.id)}">Stop</button>`
+                : `<button class="btn sync-btn" data-id="${escapeHtml(d.id)}">Sync Now</button>`}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      tbody.querySelectorAll('.sync-btn').forEach(btn => {
+        btn.addEventListener('click', () => startSync(btn.dataset.id));
+      });
+      tbody.querySelectorAll('.stop-btn').forEach(btn => {
+        btn.addEventListener('click', () => stopSync(btn.dataset.id));
+      });
+    }
+
+    function renderJobs(jobs) {
+      const tbody = document.getElementById('jobs-body');
+      if (!jobs.length) {
+        tbody.innerHTML = '<tr><td colspan="7">No sync jobs yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = jobs.map(j => `
+        <tr>
+          <td><code>${escapeHtml(j.dataset_id)}</code></td>
+          <td>${escapeHtml(j.trigger)}</td>
+          <td class="status-${escapeHtml(j.status)}">${escapeHtml(j.status)}</td>
+          <td>${j.rows_synced}</td>
+          <td>${j.last_offset}</td>
+          <td>${fmtTime(j.started_at)}</td>
+          <td>${escapeHtml(j.error || '')}</td>
+        </tr>
+      `).join('');
+    }
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch('/admin/api/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderDatasets(data.Datasets || []);
+        renderJobs(data.Jobs || []);
+        const anyRunning = (data.Datasets || []).some(d => d.running);
+        document.getElementById('poll-indicator').textContent = anyRunning ? '· updating' : '';
+      } catch (e) {
+        console.error('status refresh failed', e);
+      }
+    }
+
+    async function stopSync(id) {
+      try {
+        const res = await fetch(`/admin/datasets/${id}/stop`, { method: 'POST' });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Failed to stop sync');
+          return;
+        }
+        await refreshStatus();
+      } catch (e) {
+        alert('Failed to stop sync');
+      }
+    }
+
+    async function startSync(id) {
+      const url = id ? `/admin/datasets/${id}/sync` : '/admin/sync';
+      try {
+        const res = await fetch(url, { method: 'POST' });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Failed to start sync');
+          return;
+        }
+        await refreshStatus();
+      } catch (e) {
+        alert('Failed to start sync');
+      }
+    }
+
+    document.getElementById('sync-all-btn').addEventListener('click', () => startSync(null));
+    refreshStatus();
+    setInterval(refreshStatus, 1000);
+  </script>
 </body>
 </html>

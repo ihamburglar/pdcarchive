@@ -3,6 +3,7 @@ package admin
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -16,9 +17,9 @@ import (
 const sessionKey = "admin_authenticated"
 
 type Handler struct {
-	DB      *gorm.DB
-	Config  *config.Config
-	Syncer  *sync.Syncer
+	DB     *gorm.DB
+	Config *config.Config
+	Syncer *sync.Syncer
 }
 
 func NewHandler(db *gorm.DB, cfg *config.Config, syncer *sync.Syncer) *Handler {
@@ -29,6 +30,11 @@ func (h *Handler) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
 		if auth, ok := session.Get(sessionKey).(bool); !ok || !auth {
+			if strings.HasPrefix(c.Request.URL.Path, "/admin/api/") {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+				c.Abort()
+				return
+			}
 			c.Redirect(http.StatusFound, "/admin/login")
 			c.Abort()
 			return
@@ -67,10 +73,39 @@ func (h *Handler) Logout(c *gin.Context) {
 }
 
 func (h *Handler) Dashboard(c *gin.Context) {
+	data := h.buildStatusData()
+	c.HTML(http.StatusOK, "admin.html", data)
+}
+
+type datasetStatus struct {
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	RowCount   int64   `json:"row_count"`
+	SyncOffset int64   `json:"sync_offset"`
+	SyncedAt   *string `json:"synced_at,omitempty"`
+	Running    bool    `json:"running"`
+}
+
+type jobStatus struct {
+	ID         uint    `json:"id"`
+	DatasetID  string  `json:"dataset_id"`
+	Status     string  `json:"status"`
+	Trigger    string  `json:"trigger"`
+	RowsSynced int64   `json:"rows_synced"`
+	LastOffset int64   `json:"last_offset"`
+	StartedAt  *string `json:"started_at,omitempty"`
+	FinishedAt *string `json:"finished_at,omitempty"`
+	Error      string  `json:"error,omitempty"`
+}
+
+func (h *Handler) StatusAPI(c *gin.Context) {
+	c.JSON(http.StatusOK, h.buildStatusData())
+}
+
+func (h *Handler) buildStatusData() gin.H {
 	var datasets []models.Dataset
 	h.DB.Order("name").Find(&datasets)
 
-	// Ensure configured datasets appear even if not yet synced
 	existing := make(map[string]bool)
 	for _, d := range datasets {
 		existing[d.ID] = true
@@ -81,19 +116,51 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		}
 	}
 
+	dsOut := make([]datasetStatus, 0, len(datasets))
+	for _, d := range datasets {
+		ds := datasetStatus{
+			ID:         d.ID,
+			Name:       d.Name,
+			RowCount:   d.RowCount,
+			SyncOffset: d.SyncOffset,
+			Running:    h.Syncer.IsRunning(d.ID),
+		}
+		if d.SyncedAt != nil {
+			s := d.SyncedAt.Format(time.RFC3339)
+			ds.SyncedAt = &s
+		}
+		dsOut = append(dsOut, ds)
+	}
+
 	var jobs []models.SyncJob
 	h.DB.Order("id DESC").Limit(20).Find(&jobs)
 
-	running := make(map[string]bool)
-	for _, id := range h.Config.Datasets {
-		running[id] = h.Syncer.IsRunning(id)
+	jobsOut := make([]jobStatus, 0, len(jobs))
+	for _, j := range jobs {
+		js := jobStatus{
+			ID:         j.ID,
+			DatasetID:  j.DatasetID,
+			Status:     j.Status,
+			Trigger:    j.Trigger,
+			RowsSynced: j.RowsSynced,
+			LastOffset: j.LastOffset,
+			Error:      j.Error,
+		}
+		if j.StartedAt != nil {
+			s := j.StartedAt.Format(time.RFC3339)
+			js.StartedAt = &s
+		}
+		if j.FinishedAt != nil {
+			s := j.FinishedAt.Format(time.RFC3339)
+			js.FinishedAt = &s
+		}
+		jobsOut = append(jobsOut, js)
 	}
 
-	c.HTML(http.StatusOK, "admin.html", gin.H{
-		"Datasets": datasets,
-		"Jobs":     jobs,
-		"Running":  running,
-	})
+	return gin.H{
+		"Datasets": dsOut,
+		"Jobs":     jobsOut,
+	}
 }
 
 func (h *Handler) SyncDataset(c *gin.Context) {
@@ -114,6 +181,19 @@ func (h *Handler) SyncAll(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"message": "sync started for all datasets"})
 }
 
+func (h *Handler) StopDataset(c *gin.Context) {
+	id := c.Param("id")
+	if !h.isConfigured(id) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dataset not configured"})
+		return
+	}
+	if !h.Syncer.StopSync(id) {
+		c.JSON(http.StatusConflict, gin.H{"error": "sync not running"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "sync stop requested", "dataset_id": id})
+}
+
 func (h *Handler) isConfigured(id string) bool {
 	for _, d := range h.Config.Datasets {
 		if d == id {
@@ -125,7 +205,6 @@ func (h *Handler) isConfigured(id string) bool {
 
 func checkPassword(password, expected string) bool {
 	expected = strings.TrimSpace(expected)
-	// Support bcrypt-hashed passwords in env ($2a$, $2b$, $2y$) or plain text for dev
 	if len(expected) >= 4 && expected[0] == '$' && expected[1] == '2' && (expected[2] == 'a' || expected[2] == 'b' || expected[2] == 'y') && expected[3] == '$' {
 		return bcrypt.CompareHashAndPassword([]byte(expected), []byte(password)) == nil
 	}

@@ -7,6 +7,7 @@ const (
 	SyncStatusRunning   = "running"
 	SyncStatusCompleted = "completed"
 	SyncStatusFailed    = "failed"
+	SyncStatusCancelled = "cancelled"
 
 	SyncTriggerScheduled = "scheduled"
 	SyncTriggerManual    = "manual"
@@ -20,6 +21,7 @@ type SyncJob struct {
 	StartedAt  *time.Time
 	FinishedAt *time.Time
 	RowsSynced int64 `gorm:"default:0"`
+	LastOffset int64 `gorm:"default:0"`
 	Error      string
 	Trigger    string `gorm:"not null"`
 }

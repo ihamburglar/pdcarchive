@@ -9,11 +9,9 @@ import (
 	"time"
 )
 
-const pageSize = 50000
-
 type Client struct {
-	baseURL   string
-	appToken  string
+	baseURL    string
+	appToken   string
 	httpClient *http.Client
 }
 
@@ -59,8 +57,8 @@ func (c *Client) FetchColumns(datasetID string) ([]ColumnMeta, error) {
 	return columns, nil
 }
 
-func (c *Client) FetchPage(datasetID string, offset int) ([]json.RawMessage, *http.Header, error) {
-	url := fmt.Sprintf("%s/resource/%s.json?$limit=%d&$offset=%d", c.baseURL, datasetID, pageSize, offset)
+func (c *Client) FetchPage(datasetID string, offset, limit int) ([]json.RawMessage, *http.Header, error) {
+	url := fmt.Sprintf("%s/resource/%s.json?$limit=%d&$offset=%d", c.baseURL, datasetID, limit, offset)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, nil, err
