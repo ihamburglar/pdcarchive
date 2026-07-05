@@ -6,6 +6,7 @@ import (
 
 	"github.com/ihamburglar/pdcarchive/internal/api"
 	"github.com/ihamburglar/pdcarchive/internal/config"
+	"github.com/ihamburglar/pdcarchive/internal/datasets"
 	"github.com/ihamburglar/pdcarchive/internal/db"
 	"github.com/ihamburglar/pdcarchive/internal/sync"
 )
@@ -29,7 +30,7 @@ func main() {
 		log.Fatalf("server: %v", err)
 	}
 
-	scheduler := sync.NewScheduler(syncer, cfg.Datasets, cfg.SyncTimezone, cfg.SyncTimeHour, cfg.SyncTimeMinute)
+	scheduler := sync.NewScheduler(syncer, datasets.IDs(), cfg.SyncTimezone, cfg.SyncTimeHour, cfg.SyncTimeMinute)
 	scheduler.Start()
 
 	addr := fmt.Sprintf("0.0.0.0:%s", cfg.Port)

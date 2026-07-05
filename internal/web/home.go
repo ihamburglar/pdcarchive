@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/ihamburglar/pdcarchive/internal/config"
+	"github.com/ihamburglar/pdcarchive/internal/datasets"
 	"github.com/ihamburglar/pdcarchive/internal/models"
 	"github.com/ihamburglar/pdcarchive/internal/storage"
 	"gorm.io/gorm"
@@ -20,22 +21,22 @@ func NewHandler(db *gorm.DB, cfg *config.Config) *Handler {
 }
 
 func (h *Handler) Home(c *gin.Context) {
-	var datasets []models.Dataset
-	h.DB.Order("name").Find(&datasets)
+	var catalog []models.Dataset
+	h.DB.Order("name").Find(&catalog)
 	store := storage.NewStore(h.DB)
 
 	existing := make(map[string]bool)
-	for _, d := range datasets {
+	for _, d := range catalog {
 		existing[d.ID] = true
 	}
-	for _, id := range h.Config.Datasets {
-		if !existing[id] {
-			datasets = append(datasets, models.Dataset{ID: id, Name: id})
+	for _, reg := range datasets.All {
+		if !existing[reg.ID] {
+			catalog = append(catalog, models.Dataset{ID: reg.ID, Name: reg.Name})
 		}
 	}
-	for i := range datasets {
-		if count, err := store.CountDatasetRows(datasets[i].ID); err == nil {
-			datasets[i].RowCount = count
+	for i := range catalog {
+		if count, err := store.CountDatasetRows(catalog[i].ID); err == nil {
+			catalog[i].RowCount = count
 		}
 	}
 
@@ -50,7 +51,7 @@ func (h *Handler) Home(c *gin.Context) {
 	baseURL := scheme + "://" + host
 
 	c.HTML(http.StatusOK, "home.html", gin.H{
-		"Datasets": datasets,
+		"Datasets": catalog,
 		"BaseURL":  baseURL,
 	})
 }

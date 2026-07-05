@@ -47,7 +47,6 @@ See [.env.example](.env.example). Key variables:
 | `DB_MAX_IDLE_CONNS` | Max idle PostgreSQL connections (default `5`) |
 | `PORT` | HTTP port (Railway sets automatically) |
 | `SOURCE_BASE_URL` | Upstream Socrata host (default `https://data.wa.gov`) |
-| `DATASETS` | Comma-separated resource IDs to mirror |
 | `SYNC_TIME` | Daily sync time in `HH:MM` (default `02:00`) |
 | `SYNC_TIMEZONE` | Timezone for `SYNC_TIME` (default `America/Los_Angeles`) |
 | `SYNC_PAGE_SIZE` | Records fetched per upstream request (default `1000`) |
@@ -68,7 +67,11 @@ Admin credentials are read once at startup. After editing `.env`, **save the fil
 4. Health check path: `/health`
 5. After deploy, log in to `/admin` and trigger **Sync All** for the initial data load
 
-## Datasets (default)
+## Mirrored datasets
+
+26 PDC datasets are hardcoded in [`internal/datasets/datasets.go`](internal/datasets/datasets.go).
+
+### Campaign finance
 
 | ID | Name |
 |----|------|
@@ -78,6 +81,36 @@ Admin credentials are read once at startup. After editing `.env`, **save the fil
 | `3h9x-7bvm` | Campaign Finance Summary |
 | `3r6b-hsaa` | Debt Reported by Candidates and Political Committees |
 | `d2ig-r3q4` | Loans to Candidates and Political Committees |
+| `67cp-h962` | Independent Campaign Expenditures and Electioneering Communications |
+| `mppc-zjn9` | Last Minute Contributions to Candidates and Political Committees |
+| `8bva-rkeb` | Pledges Reporting History |
+| `9kcu-2bem` | Candidate Surplus Funds Reports |
+| `ti55-mvy5` | Surplus Funds Expenditures |
+| `qdtg-6yir` | Contributions to out-of-state political committees |
+| `mzg4-pm9n` | Expenditures by out-of-state political committees |
+
+### Lobbying
+
+| ID | Name |
+|----|------|
+| `9nnw-c693` | Lobbyist Compensation and Expenses by Source |
+| `nuwx-ay5h` | Lobbyist Reporting History |
+| `xhn7-64im` | Lobbyist Employment Registrations |
+| `biux-xiwe` | Lobbyist Employers Summary |
+| `c4ag-3cmj` | Lobbyist Summary |
+| `e7sd-jbuy` | Lobbyist Agent Employers |
+| `bp5b-jrti` | Lobbyist Agents |
+| `mjwb-szba` | Public Agency Lobbying Totals |
+| `ef7g-tyg8` | L7 - Employment of Legislators and State Officials |
+| `3v2j-kqbi` | Pre-2016 Lobbyist Compensation and Expenses by Source |
+
+### Financial affairs and enforcement
+
+| ID | Name |
+|----|------|
+| `ehbc-shxw` | Financial Affairs Disclosures |
+| `a4ma-dq6s` | PDC Enforcement Cases |
+| `ub89-7wbv` | PDC Enforcement Case Attachments |
 
 ## Attribution
 

@@ -1,18 +1,15 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
 	"strings"
-	"unicode"
 
+	"github.com/ihamburglar/pdcarchive/internal/datasets"
 	"github.com/ihamburglar/pdcarchive/internal/models"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
-
-var ErrInvalidDatasetID = errors.New("invalid dataset id")
 
 type DatasetRecord struct {
 	ID    uint           `gorm:"primaryKey"`
@@ -24,46 +21,12 @@ type Store struct {
 	db *gorm.DB
 }
 
-var fixedDatasetTables = map[string]string{
-	"kv7h-kjye": "dataset_contributions",
-	"tijg-9zyp": "dataset_expenditures",
-	"7qr9-q2c9": "dataset_reporting_history",
-	"3h9x-7bvm": "dataset_summary",
-	"3r6b-hsaa": "dataset_debt",
-	"d2ig-r3q4": "dataset_loans",
-}
-
 func NewStore(db *gorm.DB) *Store {
 	return &Store{db: db}
 }
 
 func DatasetTableName(datasetID string) (string, error) {
-	if table, ok := fixedDatasetTables[datasetID]; ok {
-		return table, nil
-	}
-	slug, err := datasetIDSlug(datasetID)
-	if err != nil {
-		return "", err
-	}
-	return "dataset_" + slug, nil
-}
-
-func datasetIDSlug(datasetID string) (string, error) {
-	if datasetID == "" {
-		return "", ErrInvalidDatasetID
-	}
-	var b strings.Builder
-	for _, r := range datasetID {
-		switch {
-		case r == '-' || r == '_':
-			b.WriteRune('_')
-		case unicode.IsLetter(r) || unicode.IsDigit(r):
-			b.WriteRune(unicode.ToLower(r))
-		default:
-			return "", ErrInvalidDatasetID
-		}
-	}
-	return b.String(), nil
+	return datasets.TableName(datasetID)
 }
 
 func (s *Store) DatasetTableName(datasetID string) (string, error) {

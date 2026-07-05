@@ -9,6 +9,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/ihamburglar/pdcarchive/internal/config"
+	"github.com/ihamburglar/pdcarchive/internal/datasets"
 	"github.com/ihamburglar/pdcarchive/internal/models"
 	"github.com/ihamburglar/pdcarchive/internal/storage"
 	"github.com/ihamburglar/pdcarchive/internal/sync"
@@ -108,22 +109,22 @@ func (h *Handler) StatusAPI(c *gin.Context) {
 }
 
 func (h *Handler) buildStatusData() gin.H {
-	var datasets []models.Dataset
-	h.DB.Order("name").Find(&datasets)
+	var catalog []models.Dataset
+	h.DB.Order("name").Find(&catalog)
 	store := storage.NewStore(h.DB)
 
 	existing := make(map[string]bool)
-	for _, d := range datasets {
+	for _, d := range catalog {
 		existing[d.ID] = true
 	}
-	for _, id := range h.Config.Datasets {
-		if !existing[id] {
-			datasets = append(datasets, models.Dataset{ID: id, Name: id})
+	for _, reg := range datasets.All {
+		if !existing[reg.ID] {
+			catalog = append(catalog, models.Dataset{ID: reg.ID, Name: reg.Name})
 		}
 	}
 
-	dsOut := make([]datasetStatus, 0, len(datasets))
-	for _, d := range datasets {
+	dsOut := make([]datasetStatus, 0, len(catalog))
+	for _, d := range catalog {
 		tableName, tableExists, _ := store.DatasetTableExists(d.ID)
 		rowCount, err := store.CountDatasetRows(d.ID)
 		if err != nil {
@@ -195,7 +196,7 @@ func (h *Handler) SyncAll(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": sync.ErrImportInProgress.Error()})
 		return
 	}
-	h.Syncer.SyncAllAsync(h.Config.Datasets, models.SyncTriggerManual)
+	h.Syncer.SyncAllAsync(datasets.IDs(), models.SyncTriggerManual)
 	c.JSON(http.StatusAccepted, gin.H{"message": "sync started for all datasets"})
 }
 
@@ -239,12 +240,8 @@ func (h *Handler) writeSyncerError(c *gin.Context, err error) {
 }
 
 func (h *Handler) isConfigured(id string) bool {
-	for _, d := range h.Config.Datasets {
-		if d == id {
-			return true
-		}
-	}
-	return false
+	_, ok := datasets.ByID(id)
+	return ok
 }
 
 func checkPassword(password, expected string) bool {

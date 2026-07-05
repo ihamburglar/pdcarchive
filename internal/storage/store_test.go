@@ -3,6 +3,7 @@ package storage
 import (
 	"testing"
 
+	"github.com/ihamburglar/pdcarchive/internal/datasets"
 	"github.com/ihamburglar/pdcarchive/internal/models"
 	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
@@ -30,16 +31,9 @@ func TestDatasetTableName(t *testing.T) {
 		t.Fatalf("table name = %q, want dataset_contributions", got)
 	}
 
-	got, err = DatasetTableName("abcd-1234")
-	if err != nil {
-		t.Fatalf("DatasetTableName fallback: %v", err)
-	}
-	if got != "dataset_abcd_1234" {
-		t.Fatalf("fallback table name = %q, want dataset_abcd_1234", got)
-	}
-
-	if _, err := DatasetTableName("bad;drop"); err != ErrInvalidDatasetID {
-		t.Fatalf("invalid id error = %v, want ErrInvalidDatasetID", err)
+	got, err = DatasetTableName("unknown-id")
+	if err != datasets.ErrUnknownDataset {
+		t.Fatalf("unknown id error = %v, want ErrUnknownDataset", err)
 	}
 }
 

@@ -21,7 +21,6 @@ type Config struct {
 	Port             string
 	SourceBaseURL    string
 	SocrataAppToken  string
-	Datasets         []string
 	SyncTimeHour     int
 	SyncTimeMinute   int
 	SyncTimezone     *time.Location
@@ -44,15 +43,6 @@ func Load() (*Config, error) {
 	syncTZ, err := time.LoadLocation(getEnv("SYNC_TIMEZONE", "America/Los_Angeles"))
 	if err != nil {
 		return nil, fmt.Errorf("SYNC_TIMEZONE: %w", err)
-	}
-
-	datasets := strings.Split(getEnv("DATASETS", ""), ",")
-	var cleaned []string
-	for _, d := range datasets {
-		d = strings.TrimSpace(d)
-		if d != "" {
-			cleaned = append(cleaned, d)
-		}
 	}
 
 	ginMode := getEnv("GIN_MODE", "debug")
@@ -84,7 +74,6 @@ func Load() (*Config, error) {
 		Port:             getEnv("PORT", "8080"),
 		SourceBaseURL:    strings.TrimRight(getEnv("SOURCE_BASE_URL", "https://data.wa.gov"), "/"),
 		SocrataAppToken:  getEnv("SOCRATA_APP_TOKEN", ""),
-		Datasets:         cleaned,
 		SyncTimeHour:     syncHour,
 		SyncTimeMinute:   syncMinute,
 		SyncTimezone:     syncTZ,
