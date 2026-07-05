@@ -8,7 +8,7 @@ An independent mirror of Washington State Public Disclosure Commission (PDC) cam
 - **Public homepage** — dataset catalog and API documentation
 - **Unauthenticated API** — no API keys required for data access
 - **Admin dashboard** — login-protected sync controls at `/admin`
-- **Background scheduler** — automatic sync on a configurable interval
+- **Background scheduler** — automatic daily sync at a configurable time
 - **Railway-ready** — Dockerfile, health check, `PORT` binding
 
 ## Quick start (local)
@@ -19,7 +19,7 @@ docker compose up -d          # start Postgres
 go run ./cmd/pdcarchive       # start server, scheduler, and admin UI
 ```
 
-Trigger the initial data load from the admin dashboard (**Sync All**), or wait for the scheduled sync on `SYNC_INTERVAL`.
+Trigger the initial data load from the admin dashboard (**Sync All**), or wait for the daily scheduled sync (`SYNC_TIME`, default 2:00 AM Pacific).
 
 - Public site: http://localhost:8080/
 - SODA API: http://localhost:8080/resource/kv7h-kjye.json?$limit=1
@@ -48,7 +48,8 @@ See [.env.example](.env.example). Key variables:
 | `PORT` | HTTP port (Railway sets automatically) |
 | `SOURCE_BASE_URL` | Upstream Socrata host (default `https://data.wa.gov`) |
 | `DATASETS` | Comma-separated resource IDs to mirror |
-| `SYNC_INTERVAL` | Background sync interval (default `24h`) |
+| `SYNC_TIME` | Daily sync time in `HH:MM` (default `02:00`) |
+| `SYNC_TIMEZONE` | Timezone for `SYNC_TIME` (default `America/Los_Angeles`) |
 | `SYNC_PAGE_SIZE` | Records fetched per upstream request (default `1000`) |
 | `SYNC_PAGE_INTERVAL` | Delay between upstream requests (default `1s`) |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Admin dashboard credentials |

@@ -150,6 +150,40 @@ func TestDBPoolIdleClampedToOpen(t *testing.T) {
 	}
 }
 
+func TestParseSyncTime(t *testing.T) {
+	tests := []struct {
+		raw       string
+		wantHour  int
+		wantMin   int
+		wantError bool
+	}{
+		{"02:00", 2, 0, false},
+		{"2:00", 2, 0, false},
+		{"14:30", 14, 30, false},
+		{"24:00", 0, 0, true},
+		{"02:60", 0, 0, true},
+		{"bad", 0, 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			hour, minute, err := parseSyncTime(tt.raw)
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if hour != tt.wantHour || minute != tt.wantMin {
+				t.Fatalf("got %02d:%02d, want %02d:%02d", hour, minute, tt.wantHour, tt.wantMin)
+			}
+		})
+	}
+}
+
 func TestUnquoteEnvValue(t *testing.T) {
 	tests := []struct {
 		in, want string

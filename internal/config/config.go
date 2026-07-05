@@ -22,7 +22,9 @@ type Config struct {
 	SourceBaseURL    string
 	SocrataAppToken  string
 	Datasets         []string
-	SyncInterval     time.Duration
+	SyncTimeHour     int
+	SyncTimeMinute   int
+	SyncTimezone     *time.Location
 	SyncPageSize     int
 	SyncPageInterval time.Duration
 	AdminUsername    string
@@ -34,9 +36,14 @@ type Config struct {
 func Load() (*Config, error) {
 	envPath := loadDotEnv()
 
-	syncInterval, err := time.ParseDuration(getEnv("SYNC_INTERVAL", "24h"))
+	syncHour, syncMinute, err := parseSyncTime(getEnv("SYNC_TIME", "02:00"))
 	if err != nil {
-		syncInterval = 24 * time.Hour
+		return nil, fmt.Errorf("SYNC_TIME: %w", err)
+	}
+
+	syncTZ, err := time.LoadLocation(getEnv("SYNC_TIMEZONE", "America/Los_Angeles"))
+	if err != nil {
+		return nil, fmt.Errorf("SYNC_TIMEZONE: %w", err)
 	}
 
 	datasets := strings.Split(getEnv("DATASETS", ""), ",")
@@ -78,7 +85,9 @@ func Load() (*Config, error) {
 		SourceBaseURL:    strings.TrimRight(getEnv("SOURCE_BASE_URL", "https://data.wa.gov"), "/"),
 		SocrataAppToken:  getEnv("SOCRATA_APP_TOKEN", ""),
 		Datasets:         cleaned,
-		SyncInterval:     syncInterval,
+		SyncTimeHour:     syncHour,
+		SyncTimeMinute:   syncMinute,
+		SyncTimezone:     syncTZ,
 		SyncPageSize:     syncPageSize,
 		SyncPageInterval: syncPageInterval,
 		AdminUsername:    adminUser,
@@ -271,6 +280,40 @@ func getPositiveIntEnv(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+func parseSyncTime(raw string) (hour, minute int, err error) {
+	parts := strings.Split(raw, ":")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid time %q, want HH:MM", raw)
+	}
+
+	hour, err = parseHourMinutePart(parts[0], 23, "hour")
+	if err != nil {
+		return 0, 0, err
+	}
+	minute, err = parseHourMinutePart(parts[1], 59, "minute")
+	if err != nil {
+		return 0, 0, err
+	}
+	return hour, minute, nil
+}
+
+func parseHourMinutePart(raw string, max int, label string) (int, error) {
+	if raw == "" {
+		return 0, fmt.Errorf("invalid %s in time", label)
+	}
+	n := 0
+	for _, c := range raw {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("invalid %s in time", label)
+		}
+		n = n*10 + int(c-'0')
+	}
+	if n < 0 || n > max {
+		return 0, fmt.Errorf("%s out of range: %d", label, n)
+	}
+	return n, nil
 }
 
 func parsePositiveInt(s string) (int, error) {

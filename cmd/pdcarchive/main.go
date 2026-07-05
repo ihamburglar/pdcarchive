@@ -29,7 +29,7 @@ func main() {
 		log.Fatalf("server: %v", err)
 	}
 
-	scheduler := sync.NewScheduler(syncer, cfg.Datasets, cfg.SyncInterval)
+	scheduler := sync.NewScheduler(syncer, cfg.Datasets, cfg.SyncTimezone, cfg.SyncTimeHour, cfg.SyncTimeMinute)
 	scheduler.Start()
 
 	addr := fmt.Sprintf("0.0.0.0:%s", cfg.Port)
