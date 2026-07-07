@@ -15,7 +15,9 @@ An independent mirror of Washington State Public Disclosure Commission (PDC) cam
 
 ```bash
 cp .env.example .env          # edit ADMIN_PASSWORD and SESSION_SECRET
-docker compose up -d          # start Postgres
+docker run -d --name pdcarchive-pg \
+  -e POSTGRES_USER=pdcarchive -e POSTGRES_PASSWORD=pdcarchive -e POSTGRES_DB=pdcarchive \
+  -p 5432:5432 postgres:16-alpine
 go run ./cmd/pdcarchive       # start server, scheduler, and admin UI
 ```
 
