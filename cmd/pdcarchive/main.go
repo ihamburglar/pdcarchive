@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	_ "time/tzdata" // embed IANA zones for distroless (no /usr/share/zoneinfo)
 
 	"github.com/ihamburglar/pdcarchive/internal/api"
 	"github.com/ihamburglar/pdcarchive/internal/config"
