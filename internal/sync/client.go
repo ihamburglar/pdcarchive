@@ -114,11 +114,14 @@ func (c *Client) FetchDatasetName(datasetID string) (string, error) {
 	return meta.Name, nil
 }
 
+const firefoxUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0"
+
 func (c *Client) setHeaders(req *http.Request) {
 	if c.appToken != "" {
 		req.Header.Set("X-App-Token", c.appToken)
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", firefoxUserAgent)
 }
 
 func ParseLastModified(headers *http.Header) *time.Time {

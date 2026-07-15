@@ -52,7 +52,8 @@ See [.env.example](.env.example). Key variables:
 | `SYNC_TIME` | Daily sync time in `HH:MM` (default `02:00`) |
 | `SYNC_TIMEZONE` | Timezone for `SYNC_TIME` (default `America/Los_Angeles`) |
 | `SYNC_PAGE_SIZE` | Records fetched per upstream request (default `1000`) |
-| `SYNC_PAGE_INTERVAL` | Delay between upstream requests (default `1s`) |
+| `SYNC_PAGE_INTERVAL_MIN` | Minimum delay between upstream requests (default `5s`) |
+| `SYNC_PAGE_INTERVAL_MAX` | Maximum delay between upstream requests (default `15s`) |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Admin dashboard credentials |
 | `SESSION_SECRET` | Session cookie signing key |
 | `SOCRATA_APP_TOKEN` | Optional upstream app token for higher rate limits |

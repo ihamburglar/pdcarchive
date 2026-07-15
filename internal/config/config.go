@@ -24,12 +24,13 @@ type Config struct {
 	SyncTimeHour     int
 	SyncTimeMinute   int
 	SyncTimezone     *time.Location
-	SyncPageSize     int
-	SyncPageInterval time.Duration
-	AdminUsername    string
-	AdminPassword    string
-	SessionSecret    string
-	Production       bool
+	SyncPageSize        int
+	SyncPageIntervalMin time.Duration
+	SyncPageIntervalMax time.Duration
+	AdminUsername       string
+	AdminPassword       string
+	SessionSecret       string
+	Production          bool
 }
 
 func Load() (*Config, error) {
@@ -57,9 +58,16 @@ func Load() (*Config, error) {
 		}
 	}
 
-	syncPageInterval, err := time.ParseDuration(getEnv("SYNC_PAGE_INTERVAL", "1s"))
+	syncPageIntervalMin, err := time.ParseDuration(getEnv("SYNC_PAGE_INTERVAL_MIN", "5s"))
 	if err != nil {
-		syncPageInterval = time.Second
+		syncPageIntervalMin = 5 * time.Second
+	}
+	syncPageIntervalMax, err := time.ParseDuration(getEnv("SYNC_PAGE_INTERVAL_MAX", "15s"))
+	if err != nil {
+		syncPageIntervalMax = 15 * time.Second
+	}
+	if syncPageIntervalMax < syncPageIntervalMin {
+		syncPageIntervalMax = syncPageIntervalMin
 	}
 	dbMaxOpenConns := getPositiveIntEnv("DB_MAX_OPEN_CONNS", 12)
 	dbMaxIdleConns := getPositiveIntEnv("DB_MAX_IDLE_CONNS", 5)
@@ -68,21 +76,22 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		DatabaseURL:      getEnv("DATABASE_URL", ""),
-		DBMaxOpenConns:   dbMaxOpenConns,
-		DBMaxIdleConns:   dbMaxIdleConns,
-		Port:             getEnv("PORT", "8080"),
-		SourceBaseURL:    strings.TrimRight(getEnv("SOURCE_BASE_URL", "https://data.wa.gov"), "/"),
-		SocrataAppToken:  getEnv("SOCRATA_APP_TOKEN", ""),
-		SyncTimeHour:     syncHour,
-		SyncTimeMinute:   syncMinute,
-		SyncTimezone:     syncTZ,
-		SyncPageSize:     syncPageSize,
-		SyncPageInterval: syncPageInterval,
-		AdminUsername:    adminUser,
-		AdminPassword:    adminPass,
-		SessionSecret:    getEnv("SESSION_SECRET", "dev-secret-change-me"),
-		Production:       production,
+		DatabaseURL:         getEnv("DATABASE_URL", ""),
+		DBMaxOpenConns:      dbMaxOpenConns,
+		DBMaxIdleConns:      dbMaxIdleConns,
+		Port:                getEnv("PORT", "8080"),
+		SourceBaseURL:       strings.TrimRight(getEnv("SOURCE_BASE_URL", "https://data.wa.gov"), "/"),
+		SocrataAppToken:     getEnv("SOCRATA_APP_TOKEN", ""),
+		SyncTimeHour:        syncHour,
+		SyncTimeMinute:      syncMinute,
+		SyncTimezone:        syncTZ,
+		SyncPageSize:        syncPageSize,
+		SyncPageIntervalMin: syncPageIntervalMin,
+		SyncPageIntervalMax: syncPageIntervalMax,
+		AdminUsername:       adminUser,
+		AdminPassword:       adminPass,
+		SessionSecret:       getEnv("SESSION_SECRET", "dev-secret-change-me"),
+		Production:          production,
 	}
 
 	if err := validateAdminPassword(cfg); err != nil {

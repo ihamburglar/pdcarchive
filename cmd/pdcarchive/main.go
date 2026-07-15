@@ -24,7 +24,7 @@ func main() {
 	}
 
 	client := sync.NewClient(cfg.SourceBaseURL, cfg.SocrataAppToken)
-	syncer := sync.NewSyncer(database, client, cfg.SyncPageSize, cfg.SyncPageInterval)
+	syncer := sync.NewSyncer(database, client, cfg.SyncPageSize, cfg.SyncPageIntervalMin, cfg.SyncPageIntervalMax)
 
 	server, err := api.NewServer(cfg, database, syncer)
 	if err != nil {

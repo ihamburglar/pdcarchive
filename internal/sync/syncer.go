@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -26,30 +27,43 @@ type runningSync struct {
 }
 
 type Syncer struct {
-	db           *gorm.DB
-	client       *Client
-	store        *storage.Store
-	pageSize     int
-	pageInterval time.Duration
-	mu           sync.Mutex
-	active       map[string]runningSync
+	db              *gorm.DB
+	client          *Client
+	store           *storage.Store
+	pageSize        int
+	pageIntervalMin time.Duration
+	pageIntervalMax time.Duration
+	mu              sync.Mutex
+	active          map[string]runningSync
 }
 
-func NewSyncer(db *gorm.DB, client *Client, pageSize int, pageInterval time.Duration) *Syncer {
+func NewSyncer(db *gorm.DB, client *Client, pageSize int, pageIntervalMin, pageIntervalMax time.Duration) *Syncer {
 	if pageSize <= 0 {
 		pageSize = 1000
 	}
-	if pageInterval <= 0 {
-		pageInterval = time.Second
+	if pageIntervalMin <= 0 {
+		pageIntervalMin = 5 * time.Second
+	}
+	if pageIntervalMax < pageIntervalMin {
+		pageIntervalMax = pageIntervalMin
 	}
 	return &Syncer{
-		db:           db,
-		client:       client,
-		store:        storage.NewStore(db),
-		pageSize:     pageSize,
-		pageInterval: pageInterval,
-		active:       make(map[string]runningSync),
+		db:              db,
+		client:          client,
+		store:           storage.NewStore(db),
+		pageSize:        pageSize,
+		pageIntervalMin: pageIntervalMin,
+		pageIntervalMax: pageIntervalMax,
+		active:          make(map[string]runningSync),
 	}
+}
+
+func (s *Syncer) nextPageInterval() time.Duration {
+	span := s.pageIntervalMax - s.pageIntervalMin
+	if span <= 0 {
+		return s.pageIntervalMin
+	}
+	return s.pageIntervalMin + time.Duration(rand.Int63n(int64(span)+1))
 }
 
 func (s *Syncer) IsRunning(datasetID string) bool {
@@ -199,7 +213,7 @@ func (s *Syncer) syncDataset(ctx context.Context, datasetID string, jobID uint) 
 	var lastModified *time.Time
 	firstPage := true
 
-	log.Printf("sync %s: resuming from offset %d (page size %d, interval %s)", datasetID, offset, s.pageSize, s.pageInterval)
+	log.Printf("sync %s: resuming from offset %d (page size %d, interval %s-%s)", datasetID, offset, s.pageSize, s.pageIntervalMin, s.pageIntervalMax)
 
 	for {
 		if err := ctx.Err(); err != nil {
@@ -207,7 +221,9 @@ func (s *Syncer) syncDataset(ctx context.Context, datasetID string, jobID uint) 
 		}
 
 		if !firstPage {
-			if err := sleepWithContext(ctx, s.pageInterval); err != nil {
+			delay := s.nextPageInterval()
+			log.Printf("sync %s: waiting %s before next page", datasetID, delay)
+			if err := sleepWithContext(ctx, delay); err != nil {
 				return s.abortSync(datasetID, datasetName, int64(offset), totalSynced)
 			}
 		}

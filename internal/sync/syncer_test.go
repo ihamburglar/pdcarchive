@@ -23,7 +23,7 @@ func testSyncerDB(t *testing.T) *gorm.DB {
 }
 
 func newTestSyncer(db *gorm.DB) *Syncer {
-	return NewSyncer(db, NewClient("https://example.com", ""), 1000, 0)
+	return NewSyncer(db, NewClient("https://example.com", ""), 1000, 0, 0)
 }
 
 func TestUpsertDatasetOffsetCreatesRow(t *testing.T) {
