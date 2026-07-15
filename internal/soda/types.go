@@ -97,3 +97,12 @@ func FieldExpr(field string) string {
 func escapeSQLString(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
 }
+
+func isNumericType(dt string) bool {
+	return strings.Contains(strings.ToLower(dt), "number")
+}
+
+func isTimestampType(dt string) bool {
+	dt = strings.ToLower(dt)
+	return strings.Contains(dt, "timestamp") || strings.Contains(dt, "date")
+}

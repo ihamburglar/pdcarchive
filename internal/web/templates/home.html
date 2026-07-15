@@ -78,24 +78,36 @@
       <h2>API Usage</h2>
       <p>Endpoints mirror <code>data.wa.gov</code> SODA 2 format:</p>
       <pre>GET /resource/{resource-id}.json
+GET /resource/{resource-id}.csv
+GET /api/views/{resource-id}.json
 GET /api/views/{resource-id}/columns.json</pre>
 
-      <p style="margin-top:1rem">Supported query parameters:</p>
+      <p style="margin-top:1rem">Supported SoQL query parameters:</p>
       <table>
         <thead><tr><th>Parameter</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td data-label="Parameter"><code>$select</code></td><td data-label="Description">Fields to return, or <code>count(*)</code></td></tr>
-          <tr><td data-label="Parameter"><code>$where</code></td><td data-label="Description">Filter (comparisons, AND, OR, IS NULL)</td></tr>
-          <tr><td data-label="Parameter"><code>$order</code></td><td data-label="Description">Sort field and direction</td></tr>
-          <tr><td data-label="Parameter"><code>$limit</code></td><td data-label="Description">Max 1000 rows per request (default 1000)</td></tr>
+          <tr><td data-label="Parameter"><code>$select</code></td><td data-label="Description">Fields, aliases, expressions, aggregates (<code>count/sum/avg/min/max</code>)</td></tr>
+          <tr><td data-label="Parameter"><code>$where</code></td><td data-label="Description">Filter with comparisons, <code>AND/OR/NOT</code>, <code>IN</code>, <code>BETWEEN</code>, <code>LIKE</code>, <code>starts_with</code>, <code>IS NULL</code></td></tr>
+          <tr><td data-label="Parameter"><code>$group</code></td><td data-label="Description">Group-by fields (with aggregates in <code>$select</code>)</td></tr>
+          <tr><td data-label="Parameter"><code>$having</code></td><td data-label="Description">Filter after aggregation</td></tr>
+          <tr><td data-label="Parameter"><code>$order</code></td><td data-label="Description">Multi-column sort (<code>ASC</code>/<code>DESC</code>)</td></tr>
+          <tr><td data-label="Parameter"><code>$limit</code></td><td data-label="Description">Max rows (default 1000; JSON capped at 1000)</td></tr>
           <tr><td data-label="Parameter"><code>$offset</code></td><td data-label="Description">Pagination offset</td></tr>
+          <tr><td data-label="Parameter"><code>$q</code></td><td data-label="Description">Full-text search across text columns</td></tr>
+          <tr><td data-label="Parameter"><code>$query</code></td><td data-label="Description">Full SoQL statement (<code>SELECT … WHERE … GROUP BY …</code>)</td></tr>
+          <tr><td data-label="Parameter"><code>$distinct</code></td><td data-label="Description">Set to <code>true</code> for <code>SELECT DISTINCT</code></td></tr>
         </tbody>
       </table>
+
+      <p style="margin-top:1rem">Geospatial SoQL functions (e.g. <code>within_box</code>) are not supported.</p>
 
       <p style="margin-top:1rem">Examples (replace host with this server):</p>
       <pre>curl "{{.BaseURL}}/resource/kv7h-kjye.json?$limit=1"
 curl "{{.BaseURL}}/resource/kv7h-kjye.json?$select=count(*)"
-curl "{{.BaseURL}}/resource/kv7h-kjye.json?$where=amount>500&$limit=2"</pre>
+curl "{{.BaseURL}}/resource/kv7h-kjye.json?$where=amount>500&$limit=2"
+curl "{{.BaseURL}}/resource/kv7h-kjye.json?$select=party,sum(amount) AS total&$group=party&$order=total DESC&$limit=5"
+curl "{{.BaseURL}}/resource/kv7h-kjye.csv?$limit=100"
+curl "{{.BaseURL}}/api/views/kv7h-kjye.json"</pre>
     </section>
 
     <section>

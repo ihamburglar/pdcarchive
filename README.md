@@ -4,7 +4,7 @@ An independent mirror of Washington State Public Disclosure Commission (PDC) cam
 
 ## Features
 
-- **Drop-in SODA 2 API** — `GET /resource/{id}.json` with `$select`, `$where`, `$order`, `$limit`, `$offset`
+- **Drop-in SODA 2 API** — SoQL core (`$select`, `$where`, `$group`, `$having`, `$order`, `$limit`, `$offset`, `$q`, `$query`, `$distinct`) plus JSON/CSV
 - **Public homepage** — dataset catalog and API documentation
 - **Unauthenticated API** — no API keys required for data access
 - **Admin dashboard** — login-protected sync controls at `/admin`
@@ -33,8 +33,13 @@ Trigger the initial data load from the admin dashboard (**Sync All**), or wait f
 curl "http://localhost:8080/resource/kv7h-kjye.json?\$limit=1"
 curl "http://localhost:8080/resource/kv7h-kjye.json?\$select=count(*)"
 curl "http://localhost:8080/resource/kv7h-kjye.json?\$where=amount>500&\$limit=2"
+curl "http://localhost:8080/resource/kv7h-kjye.json?\$select=party,sum(amount)%20AS%20total&\$group=party&\$order=total%20DESC&\$limit=5"
+curl "http://localhost:8080/resource/kv7h-kjye.csv?\$limit=100"
+curl "http://localhost:8080/api/views/kv7h-kjye.json"
 curl "http://localhost:8080/api/views/kv7h-kjye/columns.json"
 ```
+
+Supported SoQL: `$select` (including aggregates/aliases), `$where` (`AND`/`OR`/`NOT`, `IN`, `BETWEEN`, `LIKE`, `starts_with`, …), `$group`, `$having`, `$order`, `$limit`, `$offset`, `$q`, `$query`, `$distinct`. Geospatial functions are not supported.
 
 Replace `localhost:8080` with your deployment host for production use.
 

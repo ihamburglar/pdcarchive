@@ -62,6 +62,7 @@ func NewServer(cfg *config.Config, database *gorm.DB, syncer *sync.Syncer) (*Ser
 
 	r.GET("/resource/:id", sodaHandler.Resource)
 	r.GET("/api/views/:id/columns.json", sodaHandler.Columns)
+	r.GET("/api/views/:id", sodaHandler.Views)
 
 	adminRoutes := r.Group("/admin")
 	{
