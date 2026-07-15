@@ -122,4 +122,4 @@ Data sourced from the Washington State Public Disclosure Commission via [data.wa
 ## License
 
 - **Data**: [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) (Public Domain Dedication)
-- **Software**: Free Software — GNU GPL v3 — see [LICENSE](LICENSE). Source code: [github.com/ihamburglar/pdcarchive](https://github.com/ihamburglar/pdcarchive)
+- **Software**: see [LICENSE](LICENSE)
